@@ -29,6 +29,7 @@ enable_testing()
 # All source files for the core LSM library
 file(GLOB_RECURSE LSM_SOURCES
     "src/memtable/*.cpp"
+    "src/wal/*.cpp"
 )
 
 add_library(lsm_core STATIC ${LSM_SOURCES})
