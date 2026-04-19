@@ -1,0 +1,43 @@
+# ─── Build artifacts ───────────────────────────────────────
+build/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+*.a
+*.o
+*.so
+*.dylib
+
+# ─── Runtime data (WAL files, SSTables, ML models) ────────
+data/
+
+# ─── IDE / Editor files ───────────────────────────────────
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ─── OS files ──────────────────────────────────────────────
+Thumbs.db
+.Spotlight-V100
+.Trashes
+
+# ─── Test artifacts ────────────────────────────────────────
+Testing/
+test_wal_*.log
+*.log
+
+# ─── Compiled binaries ────────────────────────────────────
+lsm_tests
+lsm_db
+benchmark_runner
+
+# ─── Project files to exclude ─────────────────────────────
+PLAN.md
+
+# ─── Dependencies (auto-downloaded by CMake) ──────────────
+_deps/
