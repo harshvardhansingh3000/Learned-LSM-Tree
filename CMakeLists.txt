@@ -31,6 +31,8 @@ file(GLOB_RECURSE LSM_SOURCES
     "src/memtable/*.cpp"
     "src/wal/*.cpp"
     "src/sstable/*.cpp"
+    "src/common/*.cpp"
+    "src/bloom/*.cpp"
 )
 
 add_library(lsm_core STATIC ${LSM_SOURCES})
