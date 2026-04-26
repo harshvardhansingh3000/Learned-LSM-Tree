@@ -1,4 +1,5 @@
 #include "tree/lsm_tree.h"
+#include "ml/classifier.h"
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -6,6 +7,32 @@
 #include <iomanip>
 
 using namespace lsm;
+
+// Read modes
+enum class ReadMode { TRADITIONAL, CLASSIFIER };
+static ReadMode current_mode = ReadMode::TRADITIONAL;
+static LevelClassifier level_classifier;
+static size_t bloom_checks_skipped = 0;
+static size_t bloom_checks_total = 0;
+
+// Classifier-augmented GET
+static GetResult classifier_get(LSMTree& db, const Key& key) {
+    // Step 1: Check MemTable (same as traditional)
+    auto result = db.get(key);  // This always checks MemTable first
+    
+    // For now, we use the traditional get but track what the classifier would do
+    // In a full implementation, we'd modify the Level::get() to skip levels
+    auto predictions = level_classifier.predict_levels(key);
+    
+    for (size_t i = 0; i < predictions.size(); i++) {
+        bloom_checks_total++;
+        if (!predictions[i]) {
+            bloom_checks_skipped++;
+        }
+    }
+    
+    return result;
+}
 
 // ─── CLI for LSM-Tree Database ────────────────────────────
 //
@@ -35,6 +62,8 @@ static void print_help() {
     std::cout << "║  compact             Force compaction           ║\n";
     std::cout << "║  stats               Show database statistics   ║\n";
     std::cout << "║  load <count>        Load N random key-values   ║\n";
+    std::cout << "║  predict <key>       ML: predict which level    ║\n";
+    std::cout << "║  train               Train ML classifier        ║\n";
     std::cout << "║  help                Show this help             ║\n";
     std::cout << "║  quit / exit         Exit the program           ║\n";
     std::cout << "╚══════════════════════════════════════════════════╝\n";
@@ -220,6 +249,61 @@ int main(int argc, char* argv[]) {
         else if (command == "quit" || command == "exit" || command == "q") {
             std::cout << "  Goodbye! 👋\n";
             break;
+        }
+        // ── PREDICT (ML classifier) ───────────────────────
+        else if (command == "predict") {
+            std::string key;
+            if (!(iss >> key)) {
+                std::cout << "  Error: usage: predict <key>\n";
+                continue;
+            }
+
+            if (!level_classifier.is_loaded()) {
+                // Try to load models from multiple locations
+                level_classifier.load(data_dir + "/models", 3);
+                if (!level_classifier.is_loaded()) {
+                    level_classifier.load("../" + data_dir + "/models", 3);  // from build/
+                }
+            }
+
+            if (!level_classifier.is_loaded()) {
+                std::cout << "  ML models not loaded! Run: python3 ml/train_classifier.py\n";
+                continue;
+            }
+
+            auto start = std::chrono::high_resolution_clock::now();
+            auto predictions = level_classifier.predict_levels(key);
+            auto end = std::chrono::high_resolution_clock::now();
+            auto us = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+
+            std::cout << "  ML Prediction for '" << key << "': ";
+            bool any_check = false;
+            for (size_t i = 0; i < predictions.size(); i++) {
+                if (predictions[i]) {
+                    std::cout << "L" << i << "=CHECK ";
+                    any_check = true;
+                } else {
+                    std::cout << "L" << i << "=SKIP ";
+                }
+            }
+            if (!any_check) {
+                std::cout << " → Key likely NOT in database";
+            }
+            std::cout << " (" << us << " μs)\n";
+        }
+        // ── TRAIN (run Python training) ───────────────────
+        else if (command == "train") {
+            std::cout << "  Training ML classifier...\n";
+            int ret = system("python3 ml/train_classifier.py");
+            if (ret == 0) {
+                // Reload models
+                level_classifier.load(data_dir + "/models", 3);
+                if (level_classifier.is_loaded()) {
+                    std::cout << "  Models loaded! Use 'predict <key>' to test.\n";
+                }
+            } else {
+                std::cout << "  Training failed. Make sure Python + sklearn are installed.\n";
+            }
         }
         // ── UNKNOWN ───────────────────────────────────────
         else {

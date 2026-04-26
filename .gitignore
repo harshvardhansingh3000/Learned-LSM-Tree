@@ -28,7 +28,7 @@ Thumbs.db
 
 # ─── Test artifacts ────────────────────────────────────────
 Testing/
-test_wal_*.log
+test_data/
 *.log
 
 # ─── Compiled binaries ────────────────────────────────────
@@ -38,8 +38,14 @@ benchmark_runner
 
 # ─── Project files to exclude ─────────────────────────────
 PLAN.md
+paper.pdf
 
 # ─── Dependencies (auto-downloaded by CMake) ──────────────
 _deps/
 
-docs/
+# ─── Python ───────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+.env/
+venv/

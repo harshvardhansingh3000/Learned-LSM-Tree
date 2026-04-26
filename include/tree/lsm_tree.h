@@ -9,6 +9,7 @@
 #include "wal/wal.h"
 #include "tree/level.h"
 #include "sstable/sstable_writer.h"
+#include "ml/classifier.h"
 
 namespace lsm {
 
