@@ -10,7 +10,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 add_compile_options(-Wall -Wextra -Wpedantic)
 
 # Include directories
-include_directories(${CMAKE_SOURCE_DIR}/include)
+# This tells the compiler: "When you see `#include "bloom/bloom_filter.h"`, look in `/Users/hskhurmi/LSM/include/`"
+# without this the compiler would not know where to find our header files
+include_directories(${CMAKE_SOURCE_DIR}/include) # ${CMAKE_SOURCE_DIR} = the root of our project (/Users/hskhurmi/LSM)
 
 # ─── Google Test ───────────────────────────────────────────
 include(FetchContent)
@@ -33,6 +35,7 @@ file(GLOB_RECURSE LSM_SOURCES
     "src/sstable/*.cpp"
     "src/common/*.cpp"
     "src/bloom/*.cpp"
+    "src/tree/*.cpp"
 )
 
 add_library(lsm_core STATIC ${LSM_SOURCES})
