@@ -56,7 +56,8 @@ public:
     BloomFilter(size_t num_keys, size_t bits_per_key = 10);
 
     // Create from serialized data (for loading from SSTable)
-    BloomFilter(const std::vector<uint8_t>& data, size_t num_hash_functions);
+    // num_bits is the ORIGINAL num_bits_ used during add() — must match!
+    BloomFilter(const std::vector<uint8_t>& data, size_t num_hash_functions, size_t num_bits);
 
     // ── Operations ────────────────────────────────────────
 

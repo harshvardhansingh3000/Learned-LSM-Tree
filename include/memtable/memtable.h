@@ -40,6 +40,9 @@ public:
     // Returns the assigned sequence number.
     uint64_t put(const Key& key, const Value& value);
 
+    // Insert an entry with a specific sequence number (used by LSMTree for global ordering).
+    void insert_entry(const Entry& entry);
+
     // Mark a key as deleted (writes a tombstone).
     // Automatically assigns the next sequence number.
     // Returns the assigned sequence number.

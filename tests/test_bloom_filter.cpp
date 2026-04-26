@@ -120,7 +120,7 @@ TEST(BloomFilterTest, Serialization) {
     size_t k = bf1.num_hash_functions();
 
     // Reconstruct from serialized data
-    BloomFilter bf2(data, k);
+    BloomFilter bf2(data, k, bf1.size_bits());
 
     // All keys should still be found
     for (int i = 0; i < 100; i++) {

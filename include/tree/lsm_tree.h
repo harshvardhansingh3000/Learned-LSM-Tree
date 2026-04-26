@@ -70,6 +70,11 @@ public:
     // Searches: MemTable → L0 → L1 → L2 → ...
     GetResult get(const Key& key);
 
+    // Range scan: returns all key-value pairs where start_key <= key <= end_key.
+    // Results are sorted by key. Only returns the newest version of each key.
+    // Tombstones (deleted keys) are excluded from results.
+    std::vector<std::pair<Key, Value>> scan(const Key& start_key, const Key& end_key);
+
     // ── Maintenance ───────────────────────────────────────
 
     // Force flush the current MemTable to disk (even if not full).

@@ -177,37 +177,41 @@ bool SSTableWriter::write_entries(const std::vector<Entry>& entries) {
     uint64_t index_offset = current_offset;
 
     for (const auto& idx : index_entries) {
-        // Write each index entry: first_key (string) + offset (8) + size (4)
         write_string(idx.first_key);
         write_uint64(idx.block_offset);
         write_uint32(idx.block_size);
     }
 
-    // Calculate index size
     uint64_t after_index = static_cast<uint64_t>(out_.tellp());
     uint32_t index_size = static_cast<uint32_t>(after_index - index_offset);
 
-    // Step 6: Write the footer
-    // index_offset (8 bytes)
+    // Step 6: Write the Bloom filter block
+    // Format: [k (4)] [num_bits (4)] [data_size (4)] [data...]
+    uint32_t bloom_offset = static_cast<uint32_t>(out_.tellp());
+    BloomFilter bloom(entries.size(), 10);  // 10 bits/key → ~0.82% FPR
+    for (const auto& entry : entries) {
+        bloom.add(entry.key);
+    }
+    uint32_t bloom_k = static_cast<uint32_t>(bloom.num_hash_functions());
+    uint32_t bloom_num_bits = static_cast<uint32_t>(bloom.size_bits());
+    uint32_t bloom_data_size = static_cast<uint32_t>(bloom.data().size());
+    write_uint32(bloom_k);
+    write_uint32(bloom_num_bits);
+    write_uint32(bloom_data_size);
+    write_bytes(bloom.data().data(), bloom_data_size);
+
+    // Step 7: Write the footer (everything except bloom_offset and magic)
     write_uint64(index_offset);
-
-    // index_size (4 bytes)
     write_uint32(index_size);
-
-    // entry_count (4 bytes)
     write_uint32(static_cast<uint32_t>(entries.size()));
-
-    // min_key (string: length + data)
     write_string(entries.front().key);
-
-    // max_key (string: length + data)
-    // Find the actual max key (last unique key in sorted order)
     write_string(entries.back().key);
 
-    // magic number (4 bytes)
+    // Step 8: Write bloom_offset (4 bytes) + magic (4 bytes) — ALWAYS last 8 bytes
+    write_uint32(bloom_offset);
     write_uint32(SSTABLE_MAGIC);
 
-    // Step 7: Close the file
+    // Step 9: Close the file
     out_.flush();
     out_.close();
 

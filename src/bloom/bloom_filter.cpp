@@ -44,9 +44,9 @@ BloomFilter::BloomFilter(size_t num_keys, size_t bits_per_key) {
 // Reconstructs a Bloom filter from serialized data.
 // Used when loading an SSTable that has a Bloom filter.
 
-BloomFilter::BloomFilter(const std::vector<uint8_t>& data, size_t num_hash_functions)
+BloomFilter::BloomFilter(const std::vector<uint8_t>& data, size_t num_hash_functions, size_t num_bits)
     : bits_(data)
-    , num_bits_(data.size() * 8)
+    , num_bits_(num_bits)
     , num_hash_functions_(num_hash_functions)
 {
 }

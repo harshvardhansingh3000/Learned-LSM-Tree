@@ -245,6 +245,68 @@ TEST_F(LSMTreeTest, LargeScale) {
     }
 }
 
+// ─── Test: Scan (Range Query) ─────────────────────────────
+TEST_F(LSMTreeTest, Scan) {
+    auto config = test_config("scan");
+    LSMTree db(config);
+
+    db.put("apple", "red");
+    db.put("banana", "yellow");
+    db.put("cherry", "red");
+    db.put("date", "brown");
+    db.put("elderberry", "purple");
+
+    // Scan a range
+    auto results = db.scan("banana", "date");
+    ASSERT_EQ(results.size(), 3u);
+    EXPECT_EQ(results[0].first, "banana");
+    EXPECT_EQ(results[0].second, "yellow");
+    EXPECT_EQ(results[1].first, "cherry");
+    EXPECT_EQ(results[2].first, "date");
+
+    // Scan all
+    auto all = db.scan("a", "z");
+    EXPECT_EQ(all.size(), 5u);
+
+    // Scan empty range
+    auto empty = db.scan("x", "z");
+    EXPECT_EQ(empty.size(), 0u);
+}
+
+// ─── Test: Scan Excludes Deleted Keys ─────────────────────
+TEST_F(LSMTreeTest, ScanExcludesDeleted) {
+    auto config = test_config("scan_del");
+    LSMTree db(config);
+
+    db.put("a", "1");
+    db.put("b", "2");
+    db.put("c", "3");
+    db.remove("b");  // Delete "b"
+
+    auto results = db.scan("a", "c");
+    ASSERT_EQ(results.size(), 2u);
+    EXPECT_EQ(results[0].first, "a");
+    EXPECT_EQ(results[1].first, "c");
+    // "b" should NOT appear (it's deleted)
+}
+
+// ─── Test: Scan After Flush ───────────────────────────────
+TEST_F(LSMTreeTest, ScanAfterFlush) {
+    auto config = test_config("scan_flush");
+    LSMTree db(config);
+
+    db.put("x", "1");
+    db.put("y", "2");
+    db.flush();
+    db.put("z", "3");  // In MemTable
+
+    auto results = db.scan("x", "z");
+    ASSERT_EQ(results.size(), 3u);
+    EXPECT_EQ(results[0].first, "x");
+    EXPECT_EQ(results[1].first, "y");
+    EXPECT_EQ(results[2].first, "z");
+}
+
 // ─── Test: Statistics ─────────────────────────────────────
 TEST_F(LSMTreeTest, Statistics) {
     auto config = test_config("stats");

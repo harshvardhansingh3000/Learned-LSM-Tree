@@ -36,6 +36,13 @@ uint64_t MemTable::put(const Key& key, const Value& value) {
     return seq;
 }
 
+void MemTable::insert_entry(const Entry& entry) {
+    skip_list_.insert(entry);
+    if (entry.sequence_number > sequence_number_) {
+        sequence_number_ = entry.sequence_number;
+    }
+}
+
 // ─── Remove (Delete) ─────────────────────────────────────
 // Marks a key as deleted by inserting a tombstone.
 //

@@ -5,6 +5,8 @@
 #include <vector>
 #include "common/types.h"
 #include "sstable/sstable_format.h"
+#include "bloom/bloom_filter.h"
+#include <memory>
 
 namespace lsm {
 
@@ -86,9 +88,13 @@ private:
     static bool read_uint64(uint64_t& value, std::ifstream& in);
     static bool read_string(std::string& str, std::ifstream& in);
 
+    // Read the Bloom filter from the file using bloom_offset from footer
+    void read_bloom_filter();
+
     std::string file_path_;
     Footer footer_;                      // Metadata (read once on open)
     std::vector<IndexEntry> index_;      // Fence pointers (read once on open)
+    std::unique_ptr<BloomFilter> bloom_; // Bloom filter (read once on open)
 };
 
 } // namespace lsm

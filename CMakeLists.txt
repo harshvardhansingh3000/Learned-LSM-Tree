@@ -50,6 +50,6 @@ target_link_libraries(lsm_tests PRIVATE lsm_core GTest::gtest_main)
 include(GoogleTest)
 gtest_discover_tests(lsm_tests)
 
-# ─── Main executable (placeholder) ────────────────────────
-# add_executable(lsm_db src/main.cpp)
-# target_link_libraries(lsm_db PRIVATE lsm_core)
+# ─── Main executable ──────────────────────────────────────
+add_executable(lsm_db src/main.cpp)
+target_link_libraries(lsm_db PRIVATE lsm_core)

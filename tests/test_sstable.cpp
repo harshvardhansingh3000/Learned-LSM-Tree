@@ -136,7 +136,8 @@ TEST_F(SSTableTest, MayContain) {
     EXPECT_TRUE(reader.may_contain("cat"));   // min key
     EXPECT_TRUE(reader.may_contain("dog"));   // middle
     EXPECT_TRUE(reader.may_contain("fox"));   // max key
-    EXPECT_TRUE(reader.may_contain("elk"));   // between dog and fox
+    // Keys in range but NOT in SSTable — Bloom filter correctly rejects them
+    EXPECT_FALSE(reader.may_contain("elk"));  // not in SSTable, bloom says no
 
     EXPECT_FALSE(reader.may_contain("ant"));  // before min
     EXPECT_FALSE(reader.may_contain("zoo"));  // after max

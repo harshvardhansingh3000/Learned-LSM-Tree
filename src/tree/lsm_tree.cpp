@@ -71,9 +71,9 @@ void LSMTree::put(const Key& key, const Value& value) {
     // Step 1: WAL first (durability)
     wal_->append_put(key, value);
 
-    // Step 2: MemTable
+    // Step 2: MemTable — insert with GLOBAL sequence number
     sequence_number_++;
-    memtable_->put(key, value);
+    memtable_->insert_entry(Entry(key, value, EntryType::PUT, sequence_number_));
 
     // Step 3: Check if MemTable needs flushing
     if (memtable_->should_flush()) {
@@ -92,9 +92,9 @@ void LSMTree::remove(const Key& key) {
     // Step 1: WAL first
     wal_->append_delete(key);
 
-    // Step 2: MemTable (tombstone)
+    // Step 2: MemTable (tombstone with GLOBAL sequence number)
     sequence_number_++;
-    memtable_->remove(key);
+    memtable_->insert_entry(Entry(key, "", EntryType::DELETE, sequence_number_));
 
     // Step 3: Check if MemTable needs flushing
     if (memtable_->should_flush()) {
@@ -141,6 +141,59 @@ GetResult LSMTree::get(const Key& key) {
 
     // Not found anywhere
     return GetResult::NotFound();
+}
+
+// ─── Scan (Range Query) ───────────────────────────────────
+// Returns all key-value pairs where start_key <= key <= end_key.
+//
+// Algorithm:
+//   1. Collect ALL entries from MemTable + all levels
+//   2. Sort and deduplicate (keep newest version of each key)
+//   3. Filter to the requested range [start_key, end_key]
+//   4. Exclude tombstones (deleted keys)
+//
+// This is not the most efficient implementation (reads everything),
+// but it's correct. A production system would use merge iterators.
+
+std::vector<std::pair<Key, Value>> LSMTree::scan(const Key& start_key, const Key& end_key) {
+    // Step 1: Collect all entries
+    std::vector<Entry> all_entries;
+
+    // From MemTable
+    auto mem_entries = memtable_->get_all_entries();
+    all_entries.insert(all_entries.end(), mem_entries.begin(), mem_entries.end());
+
+    // From all levels
+    for (const auto& level : levels_) {
+        auto level_entries = level->get_all_entries();
+        all_entries.insert(all_entries.end(),
+                          std::make_move_iterator(level_entries.begin()),
+                          std::make_move_iterator(level_entries.end()));
+    }
+
+    // Step 2: Sort and deduplicate
+    std::sort(all_entries.begin(), all_entries.end());
+
+    // Step 3 & 4: Filter range and exclude tombstones
+    std::vector<std::pair<Key, Value>> results;
+    std::string last_key;
+
+    for (const auto& entry : all_entries) {
+        // Skip duplicates (we already have the newest version)
+        if (entry.key == last_key) continue;
+        last_key = entry.key;
+
+        // Filter to range
+        if (entry.key < start_key) continue;
+        if (entry.key > end_key) break;  // Past the range, done (entries are sorted)
+
+        // Exclude tombstones
+        if (entry.type == EntryType::DELETE) continue;
+
+        results.emplace_back(entry.key, entry.value);
+    }
+
+    return results;
 }
 
 // ─── Flush (Public) ───────────────────────────────────────

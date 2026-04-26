@@ -6,6 +6,7 @@
 #include "common/types.h"
 #include "common/config.h"
 #include "sstable/sstable_format.h"
+#include "bloom/bloom_filter.h"
 
 namespace lsm {
 
