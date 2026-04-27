@@ -215,7 +215,11 @@ void WAL::sync() {
 #ifdef __APPLE__
         fcntl(fd, F_FULLFSYNC);  // macOS: stronger than fsync
 #else
-        fsync(fd);               // Linux: standard fsync
+        #if defined(_WIN32)
+            _commit(fd);  // Windows / MinGW
+        #else
+            fsync(fd);    // POSIX
+        #endif           // Linux: standard fsync
 #endif
         close(fd);
     }

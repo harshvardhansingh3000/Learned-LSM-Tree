@@ -220,10 +220,17 @@ std::vector<bool> LevelClassifier::predict_levels(const Key& key) const {
     auto features = FeatureExtractor::extract(key);
     std::vector<bool> should_check(classifiers_.size(), true);
     
+    // Conservative threshold: lower value = more likely to check the level
+    // This reduces false negatives (missing keys) at the cost of more Bloom filter probes
+    // 0.3 threshold: if probability >= 30%, check the level (vs default 0.5)
+    const double kThreshold = 0.3;
+    
     for (size_t i = 0; i < classifiers_.size(); i++) {
         if (classifiers_[i] && classifiers_[i]->is_loaded()) {
-            // Classifier predicts: should we check this level?
-            should_check[i] = classifiers_[i]->predict(features);
+            // Get probability for debugging
+            double prob = classifiers_[i]->predict_proba(features);
+            // Use conservative threshold to avoid missing keys
+            should_check[i] = (prob >= kThreshold);
         }
         // If no classifier for this level, default to checking it (safe)
     }
