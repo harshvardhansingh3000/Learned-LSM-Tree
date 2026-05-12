@@ -37,6 +37,8 @@ file(GLOB_RECURSE LSM_SOURCES
     "src/bloom/*.cpp"
     "src/tree/*.cpp"
     "src/ml/*.cpp"
+    "src/bench/*.cpp"
+    "src/bptree/*.cpp"
 )
 
 add_library(lsm_core STATIC ${LSM_SOURCES})
@@ -54,3 +56,7 @@ gtest_discover_tests(lsm_tests)
 # ─── Main executable ──────────────────────────────────────
 add_executable(lsm_db src/main.cpp)
 target_link_libraries(lsm_db PRIVATE lsm_core)
+
+# ─── Benchmark executable ─────────────────────────────────
+add_executable(lsm_benchmark src/bench/benchmark_main.cpp)
+target_link_libraries(lsm_benchmark PRIVATE lsm_core)

@@ -1,0 +1,474 @@
+#include "bench/benchmark.h"
+#include <algorithm>
+#include <numeric>
+#include <random>
+#include <iostream>
+#include <iomanip>
+#include <fstream>
+#include <cmath>
+
+namespace lsm {
+namespace bench {
+
+// ─── Workload Factory Functions ────────────────────────────
+
+Workload Workload::point_query_random(size_t ops) {
+    return {
+        WorkloadType::POINT_QUERY_RANDOM,
+        ops,
+        90,  // 90% reads
+        "Point Query (Random)"
+    };
+}
+
+Workload Workload::point_query_sequential(size_t ops) {
+    return {
+        WorkloadType::POINT_QUERY_SEQUENTIAL,
+        ops,
+        90,  // 90% reads
+        "Point Query (Sequential)"
+    };
+}
+
+Workload Workload::write_heavy(size_t ops) {
+    return {
+        WorkloadType::WRITE_HEAVY,
+        ops,
+        10,  // 10% reads
+        "Write Heavy"
+    };
+}
+
+Workload Workload::range_query(size_t ops) {
+    return {
+        WorkloadType::RANGE_QUERY,
+        ops,
+        5,  // 5% reads (range)
+        "Range Query"
+    };
+}
+
+Workload Workload::temporal_skewed(size_t ops) {
+    return {
+        WorkloadType::TEMPORAL_SKEWED,
+        ops,
+        90,  // 90% reads
+        "Temporal Skewed"
+    };
+}
+
+// ─── Benchmark Harness Implementation ──────────────────────
+
+BenchmarkHarness::BenchmarkHarness() {}
+
+void BenchmarkHarness::load_data(LSMTree* db, size_t num_keys, WorkloadType workload_type) {
+    std::cout << "  Loading " << num_keys << " keys..." << std::flush;
+    
+    auto start = std::chrono::high_resolution_clock::now();
+    
+    for (size_t i = 0; i < num_keys; i++) {
+        std::string key = generate_key(i, workload_type);
+        std::string value = generate_value(i);
+        db->put(key, value);
+    }
+    
+    // Force flush to ensure data is on disk
+    db->flush();
+    
+    auto end = std::chrono::high_resolution_clock::now();
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    
+    std::cout << " done (" << ms << " ms)\n";
+}
+
+void BenchmarkHarness::warmup(LSMTree* db, const Workload& workload, size_t warmup_ops) {
+    for (size_t i = 0; i < warmup_ops; i++) {
+        size_t key_idx = random_key_index(workload.num_operations, workload.type);
+        std::string key = generate_key(key_idx, workload.type);
+        
+        if (i % 10 < workload.read_ratio / 10) {
+            db->get(key);
+        } else {
+            db->put(key, generate_value(key_idx));
+        }
+    }
+}
+
+WorkloadMetrics BenchmarkHarness::run_benchmark(
+    LSMTree* db,
+    const std::string& system_name,
+    const Workload& workload
+) {
+    std::cout << "  Running " << workload.name << "..." << std::flush;
+    
+    std::vector<uint64_t> latencies;
+    latencies.reserve(workload.num_operations);
+    
+    int false_positives = 0;
+    int false_negatives = 0;
+    int total_bloom_checks = 0;
+    int total_bloom_skips = 0;
+    
+    auto start = std::chrono::high_resolution_clock::now();
+    
+    for (size_t i = 0; i < workload.num_operations; i++) {
+        size_t key_idx = random_key_index(workload.num_operations, workload.type);
+        std::string key = generate_key(key_idx, workload.type);
+        
+        bool is_read = (i % 100) < workload.read_ratio;
+        
+        auto op_start = std::chrono::high_resolution_clock::now();
+        
+        if (is_read) {
+            auto result = db->get(key);
+            // In a real benchmark, we'd track accuracy here
+        } else {
+            std::string value = generate_value(key_idx);
+            db->put(key, value);
+        }
+        
+        auto op_end = std::chrono::high_resolution_clock::now();
+        uint64_t op_us = std::chrono::duration_cast<std::chrono::microseconds>(op_end - op_start).count();
+        latencies.push_back(op_us);
+    }
+    
+    auto end = std::chrono::high_resolution_clock::now();
+    auto total_us = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    
+    // Calculate statistics
+    std::sort(latencies.begin(), latencies.end());
+    
+    double mean = std::accumulate(latencies.begin(), latencies.end(), 0.0) / latencies.size();
+    double median = (latencies.size() % 2 == 0)
+        ? (latencies[latencies.size() / 2 - 1] + latencies[latencies.size() / 2]) / 2.0
+        : latencies[latencies.size() / 2];
+    
+    double p95 = calculate_percentile(latencies, 0.95);
+    double p99 = calculate_percentile(latencies, 0.99);
+    
+    double throughput = (workload.num_operations * 1e6) / total_us;
+    
+    std::cout << " done (avg: " << static_cast<int>(mean) << " µs, p99: " 
+              << static_cast<int>(p99) << " µs)\n";
+    
+    return WorkloadMetrics{
+        system_name,
+        workload.name,
+        workload.num_operations,
+        static_cast<double>(latencies.front()),
+        static_cast<double>(latencies.back()),
+        mean,
+        median,
+        p95,
+        p99,
+        throughput,
+        false_positives,
+        false_negatives,
+        false_positives > 0 ? (100.0 * false_positives / workload.num_operations) : 0.0,
+        false_negatives > 0 ? (100.0 * false_negatives / workload.num_operations) : 0.0,
+        0,  // memory_used_bytes (would need system calls)
+        total_bloom_checks,
+        total_bloom_skips,
+        total_bloom_checks > 0 ? (100.0 * total_bloom_skips / total_bloom_checks) : 0.0
+    };
+}
+
+void BenchmarkHarness::print_results(const std::vector<WorkloadMetrics>& results) {
+    std::cout << "\n";
+    std::cout << "╔════════════════════════════════════════════════════════════════════╗\n";
+    std::cout << "║                    Benchmark Results Summary                        ║\n";
+    std::cout << "╠════════════════════════════════════════════════════════════════════╣\n";
+    
+    // Group by workload
+    std::map<std::string, std::vector<const WorkloadMetrics*>> by_workload;
+    for (const auto& result : results) {
+        by_workload[result.workload_name].push_back(&result);
+    }
+    
+    for (const auto& [workload, metrics_list] : by_workload) {
+        std::cout << "║ " << std::setw(66) << std::left << workload << "║\n";
+        std::cout << "├─────────────────────┬─────────────────┬──────────────┬─────────────┤\n";
+        std::cout << "│ System              │ Latency (µs)    │ Throughput   │ Memory (MB) │\n";
+        std::cout << "├─────────────────────┼─────────────────┼──────────────┼─────────────┤\n";
+        
+        for (const auto* metrics : metrics_list) {
+            std::cout << "│ " << std::setw(19) << std::left << metrics->system_name
+                      << "│ " << std::setw(15) << std::right 
+                      << std::fixed << std::setprecision(0) << metrics->latency_mean
+                      << "│ " << std::setw(12) << std::right
+                      << std::fixed << std::setprecision(0) << metrics->throughput_ops_per_sec
+                      << "│ " << std::setw(11) << std::right
+                      << std::fixed << std::setprecision(1) << (metrics->memory_used_bytes / 1e6)
+                      << "│\n";
+        }
+        std::cout << "└─────────────────────┴─────────────────┴──────────────┴─────────────┘\n\n";
+    }
+    
+    std::cout << "╚════════════════════════════════════════════════════════════════════╝\n\n";
+}
+
+void BenchmarkHarness::export_csv(const std::vector<WorkloadMetrics>& results, const std::string& filename) {
+    std::ofstream csv(filename);
+    
+    csv << "System,Workload,Operations,Latency_Min_us,Latency_Max_us,Latency_Mean_us,"
+        << "Latency_Median_us,Latency_P95_us,Latency_P99_us,Throughput_ops_sec,"
+        << "FalsePositives,FalseNegatives,FPR_pct,FNR_pct,Memory_MB,BloomChecks,"
+        << "BloomSkips,BypassRate_pct\n";
+    
+    for (const auto& r : results) {
+        csv << r.system_name << ","
+            << r.workload_name << ","
+            << r.num_operations << ","
+            << std::fixed << std::setprecision(2)
+            << r.latency_min << ","
+            << r.latency_max << ","
+            << r.latency_mean << ","
+            << r.latency_median << ","
+            << r.latency_p95 << ","
+            << r.latency_p99 << ","
+            << r.throughput_ops_per_sec << ","
+            << r.false_positives << ","
+            << r.false_negatives << ","
+            << r.false_positive_rate << ","
+            << r.false_negative_rate << ","
+            << (r.memory_used_bytes / 1e6) << ","
+            << r.total_bloom_checks << ","
+            << r.total_bloom_skips << ","
+            << r.bypass_rate << "\n";
+    }
+    
+    csv.close();
+    std::cout << "Results exported to " << filename << "\n";
+}
+
+std::string BenchmarkHarness::generate_key(size_t index, WorkloadType type) {
+    char buffer[64];
+    
+    switch (type) {
+        case WorkloadType::POINT_QUERY_SEQUENTIAL:
+        case WorkloadType::WRITE_HEAVY:
+        case WorkloadType::RANGE_QUERY:
+            snprintf(buffer, sizeof(buffer), "key_%08zu", index);
+            break;
+            
+        case WorkloadType::TEMPORAL_SKEWED: {
+            // 80% of queries on last 20% of data
+            std::random_device rd;
+            std::mt19937 gen(rd() + index);
+            std::uniform_int_distribution<> dis(0, 99);
+            int rand_val = dis(gen);
+            
+            size_t effective_index = (rand_val < 80) ? (index * 0.8) : (index * 0.2 + index * 0.8);
+            snprintf(buffer, sizeof(buffer), "key_%08zu", effective_index);
+            break;
+        }
+        
+        case WorkloadType::POINT_QUERY_RANDOM:
+        default: {
+            std::random_device rd;
+            std::mt19937 gen(rd() + index);
+            std::uniform_int_distribution<> dis(0, 1000000);
+            snprintf(buffer, sizeof(buffer), "key_%08d", dis(gen));
+            break;
+        }
+    }
+    
+    return std::string(buffer);
+}
+
+std::string BenchmarkHarness::generate_value(size_t index) {
+    std::string value = "value_" + std::to_string(index) + "_";
+    // Pad to ~100 bytes like in the paper
+    value.append(80, 'x');
+    return value;
+}
+
+size_t BenchmarkHarness::random_key_index(size_t num_keys, WorkloadType type) {
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(0, num_keys - 1);
+    return dis(gen);
+}
+
+double BenchmarkHarness::calculate_percentile(const std::vector<uint64_t>& latencies, double percentile) {
+    if (latencies.empty()) return 0.0;
+    
+    size_t index = static_cast<size_t>(latencies.size() * percentile);
+    if (index >= latencies.size()) index = latencies.size() - 1;
+    
+    return latencies[index];
+}
+
+// ─── System Comparator Implementation ──────────────────────
+
+void SystemComparator::add_result(const WorkloadMetrics& metrics) {
+    results_by_system[metrics.system_name].push_back(metrics);
+}
+
+void SystemComparator::print_comparison_table() {
+    std::cout << "\n";
+    std::cout << "╔═══════════════════════════════════════════════════════════════════════╗\n";
+    std::cout << "║                    System Comparison Table                            ║\n";
+    std::cout << "╠═══════════════════════════════════════════════════════════════════════╣\n";
+    
+    for (const auto& [system_name, metrics_vec] : results_by_system) {
+        double avg_latency = 0, avg_throughput = 0;
+        for (const auto& m : metrics_vec) {
+            avg_latency += m.latency_mean;
+            avg_throughput += m.throughput_ops_per_sec;
+        }
+        avg_latency /= metrics_vec.size();
+        avg_throughput /= metrics_vec.size();
+        
+        std::cout << "║ " << std::setw(20) << std::left << system_name
+                  << " │ Avg Latency: " << std::setw(10) << std::right
+                  << std::fixed << std::setprecision(0) << avg_latency << " µs"
+                  << " │ Throughput: " << std::setw(10) << std::right
+                  << std::fixed << std::setprecision(0) << avg_throughput << " ops/s │\n";
+    }
+    
+    std::cout << "╚═══════════════════════════════════════════════════════════════════════╝\n\n";
+}
+
+void SystemComparator::generate_comparison_chart() {
+    std::cout << "\nLatency Comparison (lower is better):\n";
+    
+    std::map<std::string, double> avg_latencies;
+    
+    for (const auto& [system_name, metrics_vec] : results_by_system) {
+        double avg = 0;
+        for (const auto& m : metrics_vec) {
+            avg += m.latency_mean;
+        }
+        avg_latencies[system_name] = avg / metrics_vec.size();
+    }
+    
+    // Find baseline (LSM)
+    double baseline = 0;
+    if (avg_latencies.count("LSM")) {
+        baseline = avg_latencies["LSM"];
+    }
+    
+    for (const auto& [system, latency] : avg_latencies) {
+        double speedup = baseline > 0 ? baseline / latency : 1.0;
+        int bars = static_cast<int>(speedup * 20);
+        
+        std::cout << std::setw(20) << std::left << system << " │";
+        for (int i = 0; i < bars; ++i) std::cout << "█";
+        std::cout << " " << std::fixed << std::setprecision(2) << speedup << "x\n";
+    }
+    std::cout << "\n";
+}
+
+// ─── Generic Storage Engine Methods ────────────────────────
+
+void BenchmarkHarness::load_data(StorageEngine* engine, size_t num_keys, WorkloadType workload_type) {
+    std::cout << "  Loading " << num_keys << " keys..." << std::flush;
+    
+    auto start = std::chrono::high_resolution_clock::now();
+    
+    for (size_t i = 0; i < num_keys; i++) {
+        std::string key = generate_key(i, workload_type);
+        std::string value = generate_value(i);
+        engine->put(key, value);
+    }
+    
+    auto end = std::chrono::high_resolution_clock::now();
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    
+    std::cout << " done (" << ms << " ms)\n";
+}
+
+void BenchmarkHarness::warmup(StorageEngine* engine, const Workload& workload, size_t warmup_ops) {
+    for (size_t i = 0; i < warmup_ops; i++) {
+        size_t key_idx = random_key_index(workload.num_operations, workload.type);
+        std::string key = generate_key(key_idx, workload.type);
+        
+        if (i % 10 < workload.read_ratio / 10) {
+            engine->get(key);
+        } else {
+            engine->put(key, generate_value(key_idx));
+        }
+    }
+}
+
+WorkloadMetrics BenchmarkHarness::run_benchmark(
+    StorageEngine* engine,
+    const std::string& system_name,
+    const Workload& workload
+) {
+    std::cout << "  Running " << workload.name << "..." << std::flush;
+    
+    std::vector<uint64_t> latencies;
+    latencies.reserve(workload.num_operations);
+    
+    int false_positives = 0;
+    int false_negatives = 0;
+    int total_bloom_checks = 0;
+    int total_bloom_skips = 0;
+    
+    auto start = std::chrono::high_resolution_clock::now();
+    
+    for (size_t i = 0; i < workload.num_operations; i++) {
+        size_t key_idx = random_key_index(workload.num_operations, workload.type);
+        std::string key = generate_key(key_idx, workload.type);
+        
+        bool is_read = (i % 100) < workload.read_ratio;
+        
+        auto op_start = std::chrono::high_resolution_clock::now();
+        
+        if (is_read) {
+            auto result = engine->get(key);
+        } else {
+            std::string value = generate_value(key_idx);
+            engine->put(key, value);
+        }
+        
+        auto op_end = std::chrono::high_resolution_clock::now();
+        uint64_t op_us = std::chrono::duration_cast<std::chrono::microseconds>(op_end - op_start).count();
+        latencies.push_back(op_us);
+    }
+    
+    auto end = std::chrono::high_resolution_clock::now();
+    auto total_us = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    
+    // Calculate statistics
+    std::sort(latencies.begin(), latencies.end());
+    
+    double mean = std::accumulate(latencies.begin(), latencies.end(), 0.0) / latencies.size();
+    double median = (latencies.size() % 2 == 0)
+        ? (latencies[latencies.size() / 2 - 1] + latencies[latencies.size() / 2]) / 2.0
+        : latencies[latencies.size() / 2];
+    
+    double p95 = calculate_percentile(latencies, 0.95);
+    double p99 = calculate_percentile(latencies, 0.99);
+    
+    double throughput = (workload.num_operations * 1e6) / total_us;
+    
+    std::cout << " done (avg: " << static_cast<int>(mean) << " µs, p99: " 
+              << static_cast<int>(p99) << " µs)\n";
+    
+    return WorkloadMetrics{
+        system_name,
+        workload.name,
+        workload.num_operations,
+        static_cast<double>(latencies.front()),
+        static_cast<double>(latencies.back()),
+        mean,
+        median,
+        p95,
+        p99,
+        throughput,
+        false_positives,
+        false_negatives,
+        false_positives > 0 ? (100.0 * false_positives / workload.num_operations) : 0.0,
+        false_negatives > 0 ? (100.0 * false_negatives / workload.num_operations) : 0.0,
+        0,  // memory_used_bytes (would need system calls)
+        total_bloom_checks,
+        total_bloom_skips,
+        total_bloom_checks > 0 ? (100.0 * total_bloom_skips / total_bloom_checks) : 0.0
+    };
+}
+
+} // namespace bench
+} // namespace lsm
