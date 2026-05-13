@@ -1,4 +1,5 @@
 #include "bench/benchmark.h"
+#include "tree/lsm_tree.h"
 #include <algorithm>
 #include <numeric>
 #include <random>
@@ -6,6 +7,7 @@
 #include <iomanip>
 #include <fstream>
 #include <cmath>
+#include <filesystem>
 
 namespace lsm {
 namespace bench {
@@ -61,13 +63,14 @@ Workload Workload::temporal_skewed(size_t ops) {
 
 BenchmarkHarness::BenchmarkHarness() {}
 
-void BenchmarkHarness::load_data(LSMTree* db, size_t num_keys, WorkloadType workload_type) {
+void BenchmarkHarness::load_data(System* db, size_t num_keys) {
     std::cout << "  Loading " << num_keys << " keys..." << std::flush;
     
     auto start = std::chrono::high_resolution_clock::now();
     
+    current_num_keys_ = num_keys;
     for (size_t i = 0; i < num_keys; i++) {
-        std::string key = generate_key(i, workload_type);
+        std::string key = generate_key(i, WorkloadType::POINT_QUERY_SEQUENTIAL);
         std::string value = generate_value(i);
         db->put(key, value);
     }
@@ -81,12 +84,12 @@ void BenchmarkHarness::load_data(LSMTree* db, size_t num_keys, WorkloadType work
     std::cout << " done (" << ms << " ms)\n";
 }
 
-void BenchmarkHarness::warmup(LSMTree* db, const Workload& workload, size_t warmup_ops) {
+void BenchmarkHarness::warmup(System* db, const Workload& workload, size_t warmup_ops) {
     for (size_t i = 0; i < warmup_ops; i++) {
-        size_t key_idx = random_key_index(workload.num_operations, workload.type);
+        size_t key_idx = random_key_index(current_num_keys_, workload.type, i);
         std::string key = generate_key(key_idx, workload.type);
         
-        if (i % 10 < workload.read_ratio / 10) {
+        if (i % 100 < workload.read_ratio) {
             db->get(key);
         } else {
             db->put(key, generate_value(key_idx));
@@ -95,9 +98,10 @@ void BenchmarkHarness::warmup(LSMTree* db, const Workload& workload, size_t warm
 }
 
 WorkloadMetrics BenchmarkHarness::run_benchmark(
-    LSMTree* db,
+    System* db,
     const std::string& system_name,
-    const Workload& workload
+    const Workload& workload,
+    bool use_classifier
 ) {
     std::cout << "  Running " << workload.name << "..." << std::flush;
     
@@ -112,7 +116,7 @@ WorkloadMetrics BenchmarkHarness::run_benchmark(
     auto start = std::chrono::high_resolution_clock::now();
     
     for (size_t i = 0; i < workload.num_operations; i++) {
-        size_t key_idx = random_key_index(workload.num_operations, workload.type);
+        size_t key_idx = random_key_index(current_num_keys_, workload.type, i);
         std::string key = generate_key(key_idx, workload.type);
         
         bool is_read = (i % 100) < workload.read_ratio;
@@ -120,8 +124,23 @@ WorkloadMetrics BenchmarkHarness::run_benchmark(
         auto op_start = std::chrono::high_resolution_clock::now();
         
         if (is_read) {
-            auto result = db->get(key);
-            // In a real benchmark, we'd track accuracy here
+            if (use_classifier) {
+                if (auto* lsm = dynamic_cast<LSMTree*>(db)) {
+                    auto predictions = level_classifier_.predict_levels(key);
+                    auto result = lsm->get(key, predictions);
+                    for (size_t level = 0; level < predictions.size(); level++) {
+                        total_bloom_checks++;
+                        if (!predictions[level]) {
+                            total_bloom_skips++;
+                        }
+                    }
+                    (void)result;
+                } else {
+                    db->get(key);
+                }
+            } else {
+                db->get(key);
+            }
         } else {
             std::string value = generate_value(key_idx);
             db->put(key, value);
@@ -147,6 +166,10 @@ WorkloadMetrics BenchmarkHarness::run_benchmark(
     double p99 = calculate_percentile(latencies, 0.99);
     
     double throughput = (workload.num_operations * 1e6) / total_us;
+
+    if (use_classifier && !classifier_loaded_) {
+        std::cerr << "Warning: classifier enabled but models not loaded; falling back to traditional reads.\n";
+    }
     
     std::cout << " done (avg: " << static_cast<int>(mean) << " µs, p99: " 
               << static_cast<int>(p99) << " µs)\n";
@@ -241,38 +264,9 @@ void BenchmarkHarness::export_csv(const std::vector<WorkloadMetrics>& results, c
     std::cout << "Results exported to " << filename << "\n";
 }
 
-std::string BenchmarkHarness::generate_key(size_t index, WorkloadType type) {
+std::string BenchmarkHarness::generate_key(size_t index, WorkloadType /*type*/) {
     char buffer[64];
-    
-    switch (type) {
-        case WorkloadType::POINT_QUERY_SEQUENTIAL:
-        case WorkloadType::WRITE_HEAVY:
-        case WorkloadType::RANGE_QUERY:
-            snprintf(buffer, sizeof(buffer), "key_%08zu", index);
-            break;
-            
-        case WorkloadType::TEMPORAL_SKEWED: {
-            // 80% of queries on last 20% of data
-            std::random_device rd;
-            std::mt19937 gen(rd() + index);
-            std::uniform_int_distribution<> dis(0, 99);
-            int rand_val = dis(gen);
-            
-            size_t effective_index = (rand_val < 80) ? (index * 0.8) : (index * 0.2 + index * 0.8);
-            snprintf(buffer, sizeof(buffer), "key_%08zu", effective_index);
-            break;
-        }
-        
-        case WorkloadType::POINT_QUERY_RANDOM:
-        default: {
-            std::random_device rd;
-            std::mt19937 gen(rd() + index);
-            std::uniform_int_distribution<> dis(0, 1000000);
-            snprintf(buffer, sizeof(buffer), "key_%08d", dis(gen));
-            break;
-        }
-    }
-    
+    snprintf(buffer, sizeof(buffer), "key_%08zu", index);
     return std::string(buffer);
 }
 
@@ -283,11 +277,42 @@ std::string BenchmarkHarness::generate_value(size_t index) {
     return value;
 }
 
-size_t BenchmarkHarness::random_key_index(size_t num_keys, WorkloadType type) {
+size_t BenchmarkHarness::random_key_index(size_t num_keys, [[maybe_unused]] WorkloadType type, size_t op_index) {
     static std::random_device rd;
     static std::mt19937 gen(rd());
-    std::uniform_int_distribution<> dis(0, num_keys - 1);
-    return dis(gen);
+
+    if (num_keys == 0) return 0;
+
+    switch (type) {
+        case WorkloadType::POINT_QUERY_SEQUENTIAL:
+            return op_index % num_keys;
+
+        case WorkloadType::TEMPORAL_SKEWED: {
+            size_t hot_size = std::max<size_t>(1, num_keys / 5);
+            std::uniform_int_distribution<> hot_dist(0, static_cast<int>(hot_size - 1));
+            std::uniform_int_distribution<> cold_dist(0, static_cast<int>(num_keys - hot_size - 1));
+            std::uniform_int_distribution<> choice(0, 99);
+            if (choice(gen) < 80) {
+                return num_keys - hot_size + hot_dist(gen);
+            }
+            return cold_dist(gen);
+        }
+
+        case WorkloadType::POINT_QUERY_RANDOM:
+        case WorkloadType::WRITE_HEAVY:
+        case WorkloadType::RANGE_QUERY:
+        default: {
+            std::uniform_int_distribution<> dis(0, static_cast<int>(num_keys - 1));
+            return dis(gen);
+        }
+    }
+}
+
+void BenchmarkHarness::load_classifier(const std::string& model_dir, int num_levels) {
+    classifier_loaded_ = level_classifier_.load(model_dir, num_levels);
+    if (!classifier_loaded_) {
+        std::cerr << "Warning: failed to load classifier models from " << model_dir << "\n";
+    }
 }
 
 double BenchmarkHarness::calculate_percentile(const std::vector<uint64_t>& latencies, double percentile) {
@@ -358,116 +383,6 @@ void SystemComparator::generate_comparison_chart() {
         std::cout << " " << std::fixed << std::setprecision(2) << speedup << "x\n";
     }
     std::cout << "\n";
-}
-
-// ─── Generic Storage Engine Methods ────────────────────────
-
-void BenchmarkHarness::load_data(StorageEngine* engine, size_t num_keys, WorkloadType workload_type) {
-    std::cout << "  Loading " << num_keys << " keys..." << std::flush;
-    
-    auto start = std::chrono::high_resolution_clock::now();
-    
-    for (size_t i = 0; i < num_keys; i++) {
-        std::string key = generate_key(i, workload_type);
-        std::string value = generate_value(i);
-        engine->put(key, value);
-    }
-    
-    auto end = std::chrono::high_resolution_clock::now();
-    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-    
-    std::cout << " done (" << ms << " ms)\n";
-}
-
-void BenchmarkHarness::warmup(StorageEngine* engine, const Workload& workload, size_t warmup_ops) {
-    for (size_t i = 0; i < warmup_ops; i++) {
-        size_t key_idx = random_key_index(workload.num_operations, workload.type);
-        std::string key = generate_key(key_idx, workload.type);
-        
-        if (i % 10 < workload.read_ratio / 10) {
-            engine->get(key);
-        } else {
-            engine->put(key, generate_value(key_idx));
-        }
-    }
-}
-
-WorkloadMetrics BenchmarkHarness::run_benchmark(
-    StorageEngine* engine,
-    const std::string& system_name,
-    const Workload& workload
-) {
-    std::cout << "  Running " << workload.name << "..." << std::flush;
-    
-    std::vector<uint64_t> latencies;
-    latencies.reserve(workload.num_operations);
-    
-    int false_positives = 0;
-    int false_negatives = 0;
-    int total_bloom_checks = 0;
-    int total_bloom_skips = 0;
-    
-    auto start = std::chrono::high_resolution_clock::now();
-    
-    for (size_t i = 0; i < workload.num_operations; i++) {
-        size_t key_idx = random_key_index(workload.num_operations, workload.type);
-        std::string key = generate_key(key_idx, workload.type);
-        
-        bool is_read = (i % 100) < workload.read_ratio;
-        
-        auto op_start = std::chrono::high_resolution_clock::now();
-        
-        if (is_read) {
-            auto result = engine->get(key);
-        } else {
-            std::string value = generate_value(key_idx);
-            engine->put(key, value);
-        }
-        
-        auto op_end = std::chrono::high_resolution_clock::now();
-        uint64_t op_us = std::chrono::duration_cast<std::chrono::microseconds>(op_end - op_start).count();
-        latencies.push_back(op_us);
-    }
-    
-    auto end = std::chrono::high_resolution_clock::now();
-    auto total_us = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-    
-    // Calculate statistics
-    std::sort(latencies.begin(), latencies.end());
-    
-    double mean = std::accumulate(latencies.begin(), latencies.end(), 0.0) / latencies.size();
-    double median = (latencies.size() % 2 == 0)
-        ? (latencies[latencies.size() / 2 - 1] + latencies[latencies.size() / 2]) / 2.0
-        : latencies[latencies.size() / 2];
-    
-    double p95 = calculate_percentile(latencies, 0.95);
-    double p99 = calculate_percentile(latencies, 0.99);
-    
-    double throughput = (workload.num_operations * 1e6) / total_us;
-    
-    std::cout << " done (avg: " << static_cast<int>(mean) << " µs, p99: " 
-              << static_cast<int>(p99) << " µs)\n";
-    
-    return WorkloadMetrics{
-        system_name,
-        workload.name,
-        workload.num_operations,
-        static_cast<double>(latencies.front()),
-        static_cast<double>(latencies.back()),
-        mean,
-        median,
-        p95,
-        p99,
-        throughput,
-        false_positives,
-        false_negatives,
-        false_positives > 0 ? (100.0 * false_positives / workload.num_operations) : 0.0,
-        false_negatives > 0 ? (100.0 * false_negatives / workload.num_operations) : 0.0,
-        0,  // memory_used_bytes (would need system calls)
-        total_bloom_checks,
-        total_bloom_skips,
-        total_bloom_checks > 0 ? (100.0 * total_bloom_skips / total_bloom_checks) : 0.0
-    };
 }
 
 } // namespace bench

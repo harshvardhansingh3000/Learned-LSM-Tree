@@ -4,6 +4,8 @@
 #include <filesystem>
 #include <thread>
 #include <iomanip>
+#include "tree/btree.h"
+#include "tree/lsm_tree.h"
 
 using namespace lsm;
 using namespace lsm::bench;
@@ -52,7 +54,8 @@ int main() {
     
     const std::vector<TestConfig> configs = {
         {"LSM (Baseline)", false},
-        {"LSM+Classifier", true}
+        {"LSM+Classifier", true},
+        {"B+ Tree", false}
     };
     
     // ─── Main Benchmark Loop ──────────────────────────────
@@ -63,6 +66,10 @@ int main() {
         std::cout << "╚════════════════════════════════════════════════════════════════╝\n\n";
         
         for (const auto& config : configs) {
+            if (config.use_classifier) {
+                harness.load_classifier("data/models", 3);
+            }
+
             std::cout << "┌─ Configuration: " << config.name << " ─────────────────────────────────┐\n\n";
             
             for (const auto& workload : workloads) {
@@ -70,23 +77,28 @@ int main() {
                 std::string data_dir = "data_bench_" + std::to_string(dataset_size) + "_" + config.name;
                 cleanup_data_dir(data_dir);
                 
-                Config db_config;
-                db_config.data_dir = data_dir;
-                db_config.wal_dir = data_dir + "/wal";
-                db_config.sstable_dir = data_dir + "/sstables";
+                std::unique_ptr<System> db;
                 
-                auto db = std::make_unique<LSMTree>(db_config);
+                if (config.name == "B+ Tree") {
+                    db = std::make_unique<BTree>();
+                } else {
+                    Config db_config;
+                    db_config.data_dir = data_dir;
+                    db_config.wal_dir = data_dir + "/wal";
+                    db_config.sstable_dir = data_dir + "/sstables";
+                    db = std::make_unique<LSMTree>(db_config);
+                }
                 
                 // Load data
                 std::cout << "  Loading data for " << config.name << ":\n";
-                harness.load_data(db.get(), dataset_size, workload.type);
+                harness.load_data(db.get(), dataset_size);
                 
                 // Warmup
                 std::cout << "  Warming up...\n";
                 harness.warmup(db.get(), workload);
                 
                 // Run benchmark
-                auto result = harness.run_benchmark(db.get(), config.name, workload);
+                auto result = harness.run_benchmark(db.get(), config.name, workload, config.use_classifier);
                 all_results.push_back(result);
                 comparator.add_result(result);
                 

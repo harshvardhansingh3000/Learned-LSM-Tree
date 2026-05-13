@@ -143,6 +143,34 @@ GetResult LSMTree::get(const Key& key) {
     return GetResult::NotFound();
 }
 
+GetResult LSMTree::get(const Key& key, const std::vector<bool>& level_checks) {
+    // Step 1: Check MemTable
+    GetResult result = memtable_->get(key);
+    if (result.found) {
+        if (result.is_deleted) {
+            return GetResult::NotFound();
+        }
+        return result;
+    }
+
+    // Step 2-N: Check each level according to classifier hints.
+    for (size_t i = 0; i < levels_.size(); ++i) {
+        if (i < level_checks.size() && !level_checks[i]) {
+            continue;
+        }
+
+        result = levels_[i]->get(key);
+        if (result.found) {
+            if (result.is_deleted) {
+                return GetResult::NotFound();
+            }
+            return result;
+        }
+    }
+
+    return GetResult::NotFound();
+}
+
 // ─── Scan (Range Query) ───────────────────────────────────
 // Returns all key-value pairs where start_key <= key <= end_key.
 //

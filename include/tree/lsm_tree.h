@@ -8,6 +8,7 @@
 #include "memtable/memtable.h"
 #include "wal/wal.h"
 #include "tree/level.h"
+#include "tree/system.h"
 #include "sstable/sstable_writer.h"
 #include "ml/classifier.h"
 
@@ -48,7 +49,7 @@ namespace lsm {
 //   L1 → L2: pick one L1 SSTable, merge with overlapping L2 SSTables
 //   L2 → L3: same pattern
 
-class LSMTree {
+class LSMTree : public System {
 public:
     // Create/open an LSM-tree with the given configuration.
     // If data directory exists, recovers state from WAL and existing SSTables.
@@ -70,6 +71,11 @@ public:
     // Look up a key. Returns the value if found, empty string if not.
     // Searches: MemTable → L0 → L1 → L2 → ...
     GetResult get(const Key& key);
+    // Look up a key using per-level classifier decisions.
+    // If level_checks[i] is false, skip reading that level.
+    GetResult get(const Key& key, const std::vector<bool>& level_checks);
+    // Get system name for reporting
+    std::string name() const override { return "LSM-Tree"; }
 
     // Range scan: returns all key-value pairs where start_key <= key <= end_key.
     // Results are sorted by key. Only returns the newest version of each key.

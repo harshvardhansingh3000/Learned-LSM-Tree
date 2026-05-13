@@ -38,7 +38,6 @@ file(GLOB_RECURSE LSM_SOURCES
     "src/tree/*.cpp"
     "src/ml/*.cpp"
     "src/bench/*.cpp"
-    "src/bptree/*.cpp"
 )
 
 add_library(lsm_core STATIC ${LSM_SOURCES})

@@ -5,10 +5,9 @@
 #include <chrono>
 #include <map>
 #include <cstdint>
-#include <memory>
-#include "tree/lsm_tree.h"
+#include <functional>
+#include "tree/system.h"
 #include "ml/classifier.h"
-#include "bench/storage_engine.h"
 
 namespace lsm {
 namespace bench {
@@ -80,31 +79,21 @@ class BenchmarkHarness {
 public:
     BenchmarkHarness();
     
-    // Data loading (LSMTree)
-    void load_data(LSMTree* db, size_t num_keys, WorkloadType workload_type);
+    // Data loading
+    void load_data(System* db, size_t num_keys);
     
-    // Data loading (generic storage engine)
-    void load_data(StorageEngine* engine, size_t num_keys, WorkloadType workload_type);
+    // Warmup phase (discard results)
+    void warmup(System* db, const Workload& workload, size_t warmup_ops = 1000);
     
-    // Warmup phase (LSMTree)
-    void warmup(LSMTree* db, const Workload& workload, size_t warmup_ops = 1000);
-    
-    // Warmup phase (generic storage engine)
-    void warmup(StorageEngine* engine, const Workload& workload, size_t warmup_ops = 1000);
-    
-    // Main benchmark execution (LSMTree)
+    // Main benchmark execution
     WorkloadMetrics run_benchmark(
-        LSMTree* db,
+        System* db,
         const std::string& system_name,
-        const Workload& workload
+        const Workload& workload,
+        bool use_classifier = false
     );
-    
-    // Main benchmark execution (generic storage engine)
-    WorkloadMetrics run_benchmark(
-        StorageEngine* engine,
-        const std::string& system_name,
-        const Workload& workload
-    );
+
+    void load_classifier(const std::string& model_dir, int num_levels = 3);
     
     // Analysis
     void print_results(const std::vector<WorkloadMetrics>& results);
@@ -115,12 +104,15 @@ private:
     std::string generate_key(size_t index, WorkloadType type);
     std::string generate_value(size_t index);
     uint64_t measure_time(std::function<void()> fn);
+    size_t random_key_index(size_t num_keys, WorkloadType type, size_t op_index);
+    
+    // Benchmark classifier support
+    LevelClassifier level_classifier_;
+    bool classifier_loaded_ = false;
+    size_t current_num_keys_ = 0;
     
     // Statistics helpers
     double calculate_percentile(const std::vector<uint64_t>& latencies, double percentile);
-    
-    // Random number generation
-    size_t random_key_index(size_t num_keys, WorkloadType type);
 };
 
 // ─── System Comparator ─────────────────────────────────────
