@@ -1,0 +1,37 @@
+System,Workload,Operations,Latency_Mean_us,Latency_Median_us,Throughput_ops_sec,BloomFilter_Memory_KB,BloomChecks,BloomSkips,BypassRate_pct,FNR_pct
+LSM (Baseline) (1000k),Point Query (Random),5000,40.25,47,24395.6,3.66,0,0,0,0
+LSM (Baseline) (1000k),Write Heavy,5000,8.11,6,113783.77,3.66,0,0,0,0
+LSM (Baseline) (1000k),Temporal Skewed,5000,22.49,5,42892.68,3.66,0,0,0,0
+LSM+Classifier (1000k),Point Query (Random),5000,13.91,14,68677.55,99.66,13500,8722,64.61,11
+LSM+Classifier (1000k),Write Heavy,5000,8.95,6,104290.51,99.66,1500,967,64.47,0
+LSM+Classifier (1000k),Temporal Skewed,5000,14.09,14,67561.18,99.66,13500,8244,61.07,16
+LSM+LearnedBF (1000k),Point Query (Random),5000,38.4,47,25553.23,95.92,0,0,0,0
+LSM+LearnedBF (1000k),Write Heavy,5000,8.6,6,107963.38,95.92,0,0,0,0
+LSM+LearnedBF (1000k),Temporal Skewed,5000,21.47,1,44812.1,95.92,0,0,0,0
+B+ Tree (Disk) (1000k),Point Query (Random),5000,90.57,98,10957.15,0,0,0,0,0
+B+ Tree (Disk) (1000k),Write Heavy,5000,23.4,3,41572.44,0,0,0,0,0
+B+ Tree (Disk) (1000k),Temporal Skewed,5000,108.08,114,9193.47,0,0,0,0,0
+LSM (Baseline) (5000k),Point Query (Random),5000,53.3,49,18503.92,18.31,0,0,0,0
+LSM (Baseline) (5000k),Write Heavy,5000,19.17,6,50395.61,18.31,0,0,0,0
+LSM (Baseline) (5000k),Temporal Skewed,5000,44.67,48,22003.56,18.31,0,0,0,0
+LSM+Classifier (5000k),Point Query (Random),5000,14.05,14,67926.48,114.31,13500,8345,61.81,11
+LSM+Classifier (5000k),Write Heavy,5000,18.08,6,53331.06,114.31,1500,929,61.93,0
+LSM+Classifier (5000k),Temporal Skewed,5000,14.18,14,67169.99,114.31,13500,8032,59.5,16
+LSM+LearnedBF (5000k),Point Query (Random),5000,50.53,49,19510.22,96.66,0,0,0,0
+LSM+LearnedBF (5000k),Write Heavy,5000,19.49,6,49582.52,96.66,0,0,0,0
+LSM+LearnedBF (5000k),Temporal Skewed,5000,43.33,47,22668.34,96.66,0,0,0,0
+B+ Tree (Disk) (5000k),Point Query (Random),5000,95.73,106,10371.51,0,0,0,0,0
+B+ Tree (Disk) (5000k),Write Heavy,5000,20.05,3,48216.47,0,0,0,0,0
+B+ Tree (Disk) (5000k),Temporal Skewed,5000,105.99,114,9370.31,0,0,0,0,0
+LSM (Baseline) (10000k),Point Query (Random),5000,52.83,49,18668.28,36.62,0,0,0,0
+LSM (Baseline) (10000k),Write Heavy,5000,11.62,6,81218.93,36.62,0,0,0,0
+LSM (Baseline) (10000k),Temporal Skewed,5000,48.38,49,20343.56,36.62,0,0,0,0
+LSM+Classifier (10000k),Point Query (Random),5000,28.94,16,33721.58,132.62,13500,7877,58.35,11
+LSM+Classifier (10000k),Write Heavy,5000,10.26,6,91416.03,132.62,1500,887,59.13,0
+LSM+Classifier (10000k),Temporal Skewed,5000,32.42,17,30158.63,132.62,13500,7436,55.08,16
+LSM+LearnedBF (10000k),Point Query (Random),5000,52.28,50,18861.23,97.57,0,0,0,0
+LSM+LearnedBF (10000k),Write Heavy,5000,11.61,6,81370.94,97.57,0,0,0,0
+LSM+LearnedBF (10000k),Temporal Skewed,5000,48.34,48,20358.8,97.57,0,0,0,0
+B+ Tree (Disk) (10000k),Point Query (Random),5000,103.37,114,9605.8,0,0,0,0,0
+B+ Tree (Disk) (10000k),Write Heavy,5000,18.93,3,51003.75,0,0,0,0,0
+B+ Tree (Disk) (10000k),Temporal Skewed,5000,102.98,114,9649.99,0,0,0,0,0

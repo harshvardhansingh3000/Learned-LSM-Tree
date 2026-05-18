@@ -8,6 +8,7 @@
 #include <functional>
 #include "tree/system.h"
 #include "ml/classifier.h"
+#include "ml/learned_bloom_filter.h"
 
 namespace lsm {
 namespace bench {
@@ -94,6 +95,7 @@ public:
     );
 
     void load_classifier(const std::string& model_dir, int num_levels = 3);
+    void load_learned_bloom_filters(const std::string& model_dir, int num_levels = 3);
     
     // Analysis
     void print_results(const std::vector<WorkloadMetrics>& results);
@@ -109,6 +111,11 @@ private:
     // Benchmark classifier support
     LevelClassifier level_classifier_;
     bool classifier_loaded_ = false;
+    
+    // Learned Bloom Filter support
+    std::vector<std::unique_ptr<LearnedBloomFilter>> learned_bloom_filters_;
+    bool learned_bf_loaded_ = false;
+    
     size_t current_num_keys_ = 0;
     
     // Statistics helpers

@@ -4,7 +4,9 @@
 namespace lsm {
 
 // ─── Constructor ──────────────────────────────────────────
-BTree::BTree() {
+BTree::BTree(bool simulate_disk_io)
+    : simulate_disk_io_(simulate_disk_io)
+{
     root_ = std::make_unique<BTreeNode>(true);  // Start with leaf root
 }
 
@@ -100,6 +102,9 @@ GetResult BTree::search(BTreeNode* node, const std::string& key) const {
     if (!node) {
         return GetResult::NotFound();
     }
+
+    // Simulate reading a B+ Tree node page from disk
+    simulate_page_read();
 
     if (node->is_leaf) {
         // Search in leaf

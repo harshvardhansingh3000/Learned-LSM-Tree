@@ -174,6 +174,38 @@ WorkloadMetrics BenchmarkHarness::run_benchmark(
     std::cout << " done (avg: " << static_cast<int>(mean) << " µs, p99: " 
               << static_cast<int>(p99) << " µs)\n";
     
+    // Calculate Bloom filter memory usage for this system
+    // Traditional BF: 10 bits/key * num_keys * num_levels (levels with data)
+    // Classifier: model files loaded (~96 KB total for 3 levels) + traditional BF still present
+    // LearnedBF: model files + tiny backup BFs (much smaller than traditional)
+    uint64_t bf_memory = 0;
+    size_t num_keys = current_num_keys_;
+    int num_levels = 3;
+    
+    if (system_name.find("LearnedBF") != std::string::npos) {
+        // Learned BF: sum of model sizes + backup BF sizes
+        for (const auto& lbf : learned_bloom_filters_) {
+            if (lbf) {
+                bf_memory += lbf->total_size_bytes();
+            }
+        }
+    } else if (system_name.find("Classifier") != std::string::npos) {
+        // Classifier approach: traditional BF still used + classifier model overhead
+        // Traditional BF at each level + ~96 KB for classifier models
+        for (int i = 0; i < num_levels; i++) {
+            size_t level_keys = num_keys;  // approximate
+            bf_memory += (level_keys * 10) / 8;  // 10 bits per key, convert to bytes
+        }
+        bf_memory += 96 * 1024;  // ~96 KB for 3 level classifier models
+    } else if (system_name.find("LSM") != std::string::npos) {
+        // Traditional LSM: Bloom filters at each level
+        for (int i = 0; i < num_levels; i++) {
+            size_t level_keys = num_keys;  // approximate
+            bf_memory += (level_keys * 10) / 8;  // 10 bits per key
+        }
+    }
+    // B+ Tree: no bloom filters, memory = 0
+    
     return WorkloadMetrics{
         system_name,
         workload.name,
@@ -189,7 +221,7 @@ WorkloadMetrics BenchmarkHarness::run_benchmark(
         false_negatives,
         false_positives > 0 ? (100.0 * false_positives / workload.num_operations) : 0.0,
         false_negatives > 0 ? (100.0 * false_negatives / workload.num_operations) : 0.0,
-        0,  // memory_used_bytes (would need system calls)
+        bf_memory,
         total_bloom_checks,
         total_bloom_skips,
         total_bloom_checks > 0 ? (100.0 * total_bloom_skips / total_bloom_checks) : 0.0
@@ -210,9 +242,9 @@ void BenchmarkHarness::print_results(const std::vector<WorkloadMetrics>& results
     
     for (const auto& [workload, metrics_list] : by_workload) {
         std::cout << "║ " << std::setw(66) << std::left << workload << "║\n";
-        std::cout << "├─────────────────────┬─────────────────┬──────────────┬─────────────┤\n";
-        std::cout << "│ System              │ Latency (µs)    │ Throughput   │ Memory (MB) │\n";
-        std::cout << "├─────────────────────┼─────────────────┼──────────────┼─────────────┤\n";
+        std::cout << "├─────────────────────┬─────────────────┬──────────────┬──────────────┤\n";
+        std::cout << "│ System              │ Latency (µs)    │ Throughput   │ BF Mem (KB)  │\n";
+        std::cout << "├─────────────────────┼─────────────────┼──────────────┼──────────────┤\n";
         
         for (const auto* metrics : metrics_list) {
             std::cout << "│ " << std::setw(19) << std::left << metrics->system_name
@@ -220,8 +252,8 @@ void BenchmarkHarness::print_results(const std::vector<WorkloadMetrics>& results
                       << std::fixed << std::setprecision(0) << metrics->latency_mean
                       << "│ " << std::setw(12) << std::right
                       << std::fixed << std::setprecision(0) << metrics->throughput_ops_per_sec
-                      << "│ " << std::setw(11) << std::right
-                      << std::fixed << std::setprecision(1) << (metrics->memory_used_bytes / 1e6)
+                      << "│ " << std::setw(12) << std::right
+                      << std::fixed << std::setprecision(1) << (metrics->memory_used_bytes / 1024.0)
                       << "│\n";
         }
         std::cout << "└─────────────────────┴─────────────────┴──────────────┴─────────────┘\n\n";
@@ -233,28 +265,19 @@ void BenchmarkHarness::print_results(const std::vector<WorkloadMetrics>& results
 void BenchmarkHarness::export_csv(const std::vector<WorkloadMetrics>& results, const std::string& filename) {
     std::ofstream csv(filename);
     
-    csv << "System,Workload,Operations,Latency_Min_us,Latency_Max_us,Latency_Mean_us,"
-        << "Latency_Median_us,Latency_P95_us,Latency_P99_us,Throughput_ops_sec,"
-        << "FalsePositives,FalseNegatives,FPR_pct,FNR_pct,Memory_MB,BloomChecks,"
-        << "BloomSkips,BypassRate_pct\n";
+    csv << "System,Workload,Operations,"
+        << "Latency_Mean_us,Latency_Median_us,Throughput_ops_sec,"
+        << "BloomFilter_Memory_KB,BloomChecks,BloomSkips,BypassRate_pct\n";
     
     for (const auto& r : results) {
         csv << r.system_name << ","
             << r.workload_name << ","
             << r.num_operations << ","
             << std::fixed << std::setprecision(2)
-            << r.latency_min << ","
-            << r.latency_max << ","
             << r.latency_mean << ","
             << r.latency_median << ","
-            << r.latency_p95 << ","
-            << r.latency_p99 << ","
             << r.throughput_ops_per_sec << ","
-            << r.false_positives << ","
-            << r.false_negatives << ","
-            << r.false_positive_rate << ","
-            << r.false_negative_rate << ","
-            << (r.memory_used_bytes / 1e6) << ","
+            << std::setprecision(2) << (r.memory_used_bytes / 1024.0) << ","
             << r.total_bloom_checks << ","
             << r.total_bloom_skips << ","
             << r.bypass_rate << "\n";
@@ -313,6 +336,40 @@ void BenchmarkHarness::load_classifier(const std::string& model_dir, int num_lev
     if (!classifier_loaded_) {
         std::cerr << "Warning: failed to load classifier models from " << model_dir << "\n";
     }
+}
+
+void BenchmarkHarness::load_learned_bloom_filters(const std::string& model_dir, int num_levels) {
+    learned_bloom_filters_.clear();
+    learned_bf_loaded_ = false;
+    
+    for (int level = 0; level < num_levels; level++) {
+        std::string path = model_dir + "/level_" + std::to_string(level) + "_classifier.json";
+        auto lbf = std::make_unique<LearnedBloomFilter>();
+        
+        if (lbf->load_model(path)) {
+            // Initialize backup BF — assume ~5% FN rate, sized for current dataset
+            size_t expected_keys = current_num_keys_ > 0 ? current_num_keys_ : 10000;
+            lbf->init_backup(expected_keys, 0.05);
+            
+            // Add all known keys to build the backup filter
+            for (size_t i = 0; i < (current_num_keys_ > 0 ? current_num_keys_ : 10000); i++) {
+                std::string key = generate_key(i, WorkloadType::POINT_QUERY_SEQUENTIAL);
+                lbf->add(key);
+            }
+            
+            std::cout << "  Learned BF Level " << level << ": " << lbf->classifier_type()
+                      << " (FN caught: " << lbf->false_negatives_caught()
+                      << "/" << lbf->total_keys_added()
+                      << ", backup: " << lbf->backup_size_bytes() << " bytes"
+                      << ", model: " << lbf->model_size_bytes() << " bytes)\n";
+            
+            learned_bloom_filters_.push_back(std::move(lbf));
+        } else {
+            learned_bloom_filters_.push_back(nullptr);
+        }
+    }
+    
+    learned_bf_loaded_ = !learned_bloom_filters_.empty();
 }
 
 double BenchmarkHarness::calculate_percentile(const std::vector<uint64_t>& latencies, double percentile) {

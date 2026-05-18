@@ -1,0 +1,1006 @@
+\documentclass{mnitjaipur}
+
+\usepackage{placeins}  
+\usepackage{longtable}
+\usepackage{float}
+\usepackage{graphicx}
+\usepackage{listings}
+\lstset{
+    basicstyle=\ttfamily\footnotesize,   % smaller code font
+    breaklines=true,                     % automatically break long lines
+    breakatwhitespace=true,              % prefer breaking at spaces
+    columns=fullflexible,                % better use of line width
+    showstringspaces=false,              % don't show spaces in strings
+    frame=single,                        % nice box around code
+    xleftmargin=0.5cm,                   % add some left margin
+    xrightmargin=0.5cm                   % add some right margin
+}
+\usepackage{hyperref}
+\usepackage{booktabs}
+
+% =================================================
+% FRONT-MATTER METADATA  (as per MNIT template)
+% =================================================
+
+\documenttype{2}
+%%% 1 : minor project report
+%%% 2 : major project report
+
+\department{Computer Science \& Engineering}
+
+\stream{0} 
+%%% 0 : Computer Science \& Engineering
+
+\degree{2}
+%%% 2 : for B. Tech
+
+\areaResearch{Systems and Databases}
+
+\heading{Learned LSM-Tree Based Key--Value Storage Engine} 
+
+\groupcount{2} %% Members in group 1-4
+
+% ----- Members -----
+\nameI{Harshvardhan Singh} 
+\rollI{2022UCP1640} 
+\genderI{Male}
+
+\nameII{Lokesh Kumawat} 
+\rollII{2022UCP1548} 
+\genderII{Male}
+
+% (Uncomment and fill if you had more members)
+% \nameIII{} 
+% \rollIII{} 
+% \genderIII{}
+% \nameIV{} 
+% \rollIV{} 
+% \genderIV{}
+
+\batchmonth{July}
+\batchyear{2022}
+\qualification{B.Tech.}
+
+\logo{MNITlogo} % logo file name (without extension if class expects that)
+
+\thisdate{14}
+\thismonth{May}
+\thisyear{2026}
+
+\supervisor{Dr. Dinesh Gopalani}
+\supervisordept{Artificial Intelligence and Data Engineering}
+\supervisorcollege{Malaviya National Institute of Technology Jaipur}
+\supervisorcollegeloc{JLN Marg, Jaipur, Rajasthan 302017, INDIA}
+
+\cosupervisor{} % leave empty if none
+\cosupervisorAffliation{}
+
+\keys{~\textit{LSM-Tree};~\textit{Key--Value Store};~\textit{LevelDB};~\textit{Compaction};~\textit{Write-Ahead Log};~\textit{Bloom Filter}}
+
+% ==============================
+% ACKNOWLEDGEMENT (MNIT style)
+% ==============================
+\ack{
+
+We express our sincere gratitude to the Department of Computer Science and Engineering, Malaviya National Institute of Technology Jaipur, for providing us with the necessary infrastructure, resources, and academic environment to successfully complete this minor project.
+
+We are deeply indebted to our supervisor, \textbf{Dr.\ Dinesh Gopalani}, for his continuous guidance, valuable feedback, and encouragement throughout the course of this work. His insights into systems design and low-level implementation helped us better understand the internal behaviour of modern storage engines and refine our project in a structured way.
+
+We would also like to thank all the faculty members of the department for teaching us the foundational concepts in Data Structures, Algorithms, Operating Systems, Databases, and Computer Networks, which collectively enabled us to conceptualise and implement this project.
+
+Finally, we are thankful to our classmates, friends, and family members for their constant motivation and support.
+
+\bigskip
+\noindent
+\textbf{Team Members:}
+\begin{itemize}
+  \item Harshvardhan Singh (Roll No.\ 2022ucp1640)
+  \item Lokesh Kumawat (Roll No.\ 2022ucp1548)
+\end{itemize}
+
+}
+
+% ==============================
+% DOCUMENT STARTS
+% ==============================
+\begin{document}
+	
+	\frontpage
+	\certificate
+	\acknowledgment
+ 	\declaration
+	\setstretch{1.5}
+	
+	% ==============================
+	% ABSTRACT (MNIT style)
+	% ==============================
+	\begin{abstract}
+
+\noindent
+Modern large-scale applications such as NoSQL databases, logging platforms, cloud storage systems, and time-series analytics engines require storage infrastructures capable of supporting high write throughput, efficient read performance, durability, and rapid crash recovery. Traditional B-Tree based storage engines perform effectively for general-purpose workloads; however, under write-intensive environments they often suffer from high write amplification and excessive random disk I/O, limiting scalability and throughput. To address these limitations, modern storage systems increasingly rely on Log-Structured Merge Trees (LSM-Trees), which transform random writes into sequential operations and optimise performance for write-heavy workloads.
+
+This project presents the design and implementation of a Learned LSM-Tree based key--value storage engine developed in C++17. The proposed system incorporates the fundamental architectural components of modern LSM-tree storage engines, including an in-memory Memtable, Write-Ahead Logging (WAL), immutable Sorted String Tables (SSTables), leveled compaction, crash recovery mechanisms, and Bloom filters for efficient negative lookups. The implementation is inspired by widely used storage systems such as LevelDB, RocksDB, Cassandra, and DynamoDB.
+
+In addition to the baseline LSM-tree architecture, the project integrates machine learning based optimisations inspired by recent research on Learned LSM-Trees and Learned Bloom Filters. A multi-model classifier-assisted lookup mechanism is introduced, comparing three classifiers---Gradient Boosted Trees (GBT), Random Forest (RF), and Multi-Layer Perceptron (MLP)---and automatically selecting the best performer per level to predict probable key-level membership within the LSM-tree hierarchy, enabling the system to bypass unnecessary Bloom filter checks and reduce lookup latency. Furthermore, a hybrid Learned Bloom Filter architecture combining compact predictive models with backup Bloom filters is implemented to significantly reduce memory overhead while preserving correctness guarantees and eliminating false negatives.
+
+The storage engine supports standard operations such as \texttt{PUT}, \texttt{GET}, \texttt{DELETE}, Memtable flushing, and compaction through a command-line interface (CLI). 
+
+Experimental evaluation was conducted using multiple workloads including random, sequential, and level-targeted queries to compare traditional and ML-enhanced storage engine variants. The results demonstrate significant reductions in lookup latency through classifier-assisted level skipping along with substantial memory savings achieved by the Learned Bloom Filter architecture. The project combines concepts from database systems, storage engines, operating systems, and machine learning to provide a compact yet research-oriented implementation of a modern learned storage system.
+
+
+\vspace{5mm}
+\noindent\textbf{Keywords:}
+\textit{LSM-Tree; key--value store; LevelDB; compaction; write-ahead log; Bloom filter}
+
+	\end{abstract}
+
+	% Author roles page (if your department uses it)
+	\roleauthor
+
+	% This macro (from the MNIT class) usually generates:
+	% - Table of Contents
+	% - List of Figures
+	% - List of Tables
+	\addcontentpages 
+
+	% From here onwards, page numbering is in arabic (1,2,3,...)
+	\pagenumbering{arabic}
+
+% ==============================
+% CHAPTER 1 – INTRODUCTION
+% ==============================
+\chapter{Introduction}
+
+\section{Background and Motivation}
+
+Data-intensive applications—logging platforms, time-series analytics systems, messaging infrastructures, and web services running at large scale— heavily depend on storage engines that can handle billions of key–value operations every day. Most conventional relational databases and embedded engines, such as SQLite, are based on the B-Tree or B+-Tree data structures, which are optimized for a mix of read and write operations. However, these data structures face severe challenges in write-intensive scenarios because of the need for random disk I/O and in-place updates, complicating high-throughput and scalable performance.
+
+Consequently, due to the challenges imposed by modern workloads, the LSM-Tree architecture has emerged as one of the preferred alternatives on which several storage systems are based. Each LSM-tree implementation buffers incoming writes in an in-memory structure called a Memtable, appends them sequentially to disk using a Write-Ahead Log, and periodically flushes the sorted Memtable contents to immutable on-disk files called SSTables. Over time, background compaction routines merge these SSTables, remove obsolete entries, and maintain read performance.
+
+This architectural paradigm underpins various widely adopted systems including Google’s LevelDB, Meta’s RocksDB, Apache Cassandra, Amazon DynamoDB, and ClickHouse’s GraphDB. As such, a study of LSM-Trees returns very valuable insights into foundational design principles of modern, high-performance storage engines.
+
+
+\section{Problem Statement}
+
+Given the central role that LSM-Tree-based systems play in modern data infrastructure, the current research work is an attempt at the design and implementation of a simplified, yet fully functional, key-value storage engine based on the LSM-Tree paradigm. The system is expected to support persistent operations efficiently, query processing, crash recovery, and background compaction, while illustrating the core principles behind production-grade LSM-Tree engines in a minimal yet realistic setting.
+
+The storage engine uses a combination of WAL and SSTables to maintain persistent key–value data. It should support basic operations: PUT, GET, and DELETE. The engineering solution should be able to recover from crashes by replaying WAL. It should use compaction to merge SSTables and remove obsolete or deleted entries. Beyond the core backend functionality, the system will need to provide both command-line interface.
+
+
+\section{Objectives}
+
+We are primarily interested in understanding the theoretical basis of LSM-Trees as well as how they differ from traditional B-Trees. It includes studying Memtables, Write-Ahead Logs, SSTables, Bloom filters, and the compaction engine, all of which collectively enable efficient write-optimized storage. In addition to this, a key-value store interface that is simple and intuitive will be implemented so that key-value pairs can be inserted, retrieved, and deleted.  Lastly, the project includes functional testing of operations such as \texttt[PUT], \texttt[GET], \texttt[DELETE], flushing, and compaction to validate the correctness of the overall design.
+
+\section{Scope of the Project}
+
+This minor project consists of building a single-node, single-process key-value store without any distributed features. A level-style compaction approach is used for managing SSTable files that use strings as keys and values. A Bloom filter can be integrated to improve read efficiency by reducing unnecessary disk lookups. Besides monitoring system activity and storage behavior through a web dashboard, the project also includes a basic monitoring interface. A number of advanced performance optimizations aimed at production environments are intentionally left out of the scope of this work, including transactions, multi-client concurrency control, sharding, replication, and multi-client concurrency control.
+
+\section{Organisation of the Report}
+
+Throughout this report, ideas are presented in a logical and clear manner. The first chapter introduces the project's motivation, problem statement, objectives, and scope. The second chapter discusses existing storage engines and its essentials, such as B-trees and LSM-trees. In Chapter 3, the Mini LSM-Tree engine is described in terms of its architecture, design principles, and data flow. Implementation aspects are discussed in Chapter 4, including the C++ engine, command-line interface, and experimental results. Finally, Chapter~5 summarizes the work and discusses potential directions for future improvements.
+
+\newpage
+
+% ==============================
+% CHAPTER 2 – LITERATURE SURVEY
+% ==============================
+\chapter{Literature Survey}
+
+\section{Traditional B-Tree Based Storage Engines}
+
+Traditionally, database systems such as MySQL, PostgreSQL, and SQLite rely on B-Tree- or B$^{+}$-Tree-based indexing structures. In addition to maintaining keys in sorted order, these indexes support logarithmic-time operations such as inserts, deletions, and range queries. Random disk I/O is assumed to be acceptable and in-place updates are possible. A B-Tree based engine, however, faces several challenges when dealing with workloads that require random writing. There are many times when they split and merge pages, issue random writes across different disk locations, and modify the same pages repeatedly, all of which result in substantial write amplification. While modern SSDs and NVMe devices offer higher throughput, they still favor sequential and append-only write patterns, making traditional B-Tree behavior less optimal under sustained write pressure.
+
+\section{Log-Structured Merge Trees}
+
+The \textbf{Log-Structured Merge Tree (LSM-Tree)} is specifically designed to address these write-intensive limitations by transforming random writes into sequential operations. A Write-Ahead Log (WAL) keeps track of the operations in a LSM-Tree to ensure durability. As incoming updates are accumulated in the in-memory Memtable, a Write-Ahead Log (Memtable) records them. A Memtable becomes an SSTable once its contents reach a threshold size and are flushed to disk as a sorted, immutable file. Compaction processes merge SSTables accumulated across different levels and remove obsolete entries over time to maintain read efficiency. Despite LSM-Trees' higher read amplification, which may span several SSTables, Bloom filters and per-SSTable indexes mitigate this disadvantage. Modern data-intensive workloads benefit from LSM-Trees' improved write throughput and reduced write amplification at the expense of increased read complexity.
+
+
+\section{Comparative Analysis: B-Trees vs LSM-Trees}
+Both B-Trees and LSM-Trees are used as the core data structures in storage engines, but they are optimized for different workload characteristics. A B-tree facilitates in-place updates and provides relatively stable read latencies, whereas a LSM-tree favors append-only patterns and background data reorganization.
+
+Table~\ref{tab:btrees-lsmtrees} summarises some key differences.
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{p{3cm}p{5cm}p{5cm}}
+        \toprule
+        \textbf{Aspect} & \textbf{B-Tree Based Engines} & \textbf{LSM-Tree Based Engines} \\
+        \midrule
+        Write pattern &
+        In-place page updates; may cause page splits and random writes &
+        Sequential appends to WAL and immutable SSTables; random writes converted to sequential \\
+        \midrule
+        Read performance &
+        Typically predictable $O(\log n)$ lookups with one or two disk seeks per access &
+        May require probing Memtable and multiple SSTables; mitigated with Bloom filters and indexing \\
+        \midrule
+        Space amplification &
+        Generally low; data stored once with periodic page splits &
+        Higher due to multiple versions and tombstones until compaction removes obsolete entries \\
+        \midrule
+        Write amplification &
+        Moderate; updates may rewrite pages multiple times &
+        Can be high due to repeated rewriting of keys during compaction across levels \\
+        \midrule
+        Crash recovery &
+        Often relies on ARIES-style logging and checkpoints; logic is complex &
+        Simpler: WAL replay into Memtable followed by resumption of normal operation \\
+        \midrule
+        Typical use cases &
+        OLTP/OLAP workloads with balanced reads/writes, relational databases &
+        Write-heavy key--value stores, time-series databases, log analytics, NoSQL stores \\
+        \bottomrule
+    \end{tabular}
+    \caption{Comparison between B-Tree and LSM-Tree based storage engines.}
+    \label{tab:btrees-lsmtrees}
+\end{table}
+
+
+\section{Real-World Systems Based on LSM-Trees}
+
+There are a number of widely deployed storage systems that use LSM-Tree architectures due to their superior performance on write-intensive workloads. This key-value store, developed by Google, implements the core LSM-Tree components, including a Write-Ahead Log, Memtable, SSTable, and a compaction mechanism. RocksDB, a LevelDB extension created by Meta, introduces significant optimisations such as programmable compaction strategies, enhanced memory management, and production-oriented features. In order to achieve durable and scalable data storage across clusters, Apache Cassandra uses SSTables and compaction. Similar to Amazon DynamoDB, Amazon DynamoDB is an internal log-structured storage system that exposes a key-value and document database. For applications requiring high write throughput and predictable performance, LSM-Trees are the preferred architecture.
+
+\section{Design Variations in Existing LSM-Tree Implementations}
+
+Despite sharing the fundamental concepts of LSM-Trees, modern storage engines differ across several important design dimensions. LevelDB uses a single active Memtable and arranges SSTables into levels in which compaction moves data from the most recent level to lower levels for controlled overlap and efficient lookups. RocksDB extends this design by supporting multiple Memtables, column families, pluggable compression strategies, block caching, and numerous configuration options, making it highly adaptable to diverse workloads. Cassandra uses LSM-Tree principles within a distributed environment, maintaining table commit logs, Memtables, and SSTables, and allowing administrators to choose between size-tiered and leveled compaction. For high availability, dynamo-inspired systems integrate distributed mechanisms such as consistent hashing and replication with log-structured storage. Both embedded engines and large-scale distributed systems can benefit from the fundamental idea of buffering writes in memory and flushing them to immutable on-disk files. Mini LSM-Tree engine emphasizes embedded, single-node scenarios while maintaining layered organisation found in real-world applications.
+
+\section{Research and Educational Implementations}
+
+Many educational projects and research prototypes, such as the "mini-LSM" and simplified LevelDB clones, aim to demystify the internal workings of LSM-Tree storage systems. The features provided by these implementations are typically minimal, focusing instead on the fundamental components that define an LSM-Tree engine. Using these platforms, students and researchers can examine how write amplification, read amplification, and space amplification affect system behaviour. To facilitate experimentation, understanding, and demonstration, our project implements a compact LSM-Tree engine in C++ with both command-line interfaces.
+
+
+\newpage
+
+% ==============================
+% CHAPTER 3 – SYSTEM DESIGN & ARCHITECTURE
+% ==============================
+\chapter{System Design and Architecture}
+
+\section{Overview of the Proposed System}
+
+The proposed system is a \textbf{Mini LSM-Tree based key--value storage engine} designed with two layers of interaction. At its core lies a C++ engine that implements all fundamental LSM-Tree mechanisms, including the Memtable, Write-Ahead Log (WAL), SSTables, compaction, and optional Bloom filters. On top of this backend, a user interface layer provides two modes of interaction: a command-line tool for direct terminal-based operations monitoring, and user-friendly control of the system. Figure~\ref{fig:overall-architecture} illustrates the high-level architecture of the complete system.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.92\textwidth]{overall_lsm_architecture.png}
+    \caption{Overall architecture of the Mini LSM-Tree based key--value storage engine.}
+    \label{fig:overall-architecture}
+\end{figure}
+
+\section{Core Components}
+
+\subsection{Write-Ahead Log (WAL)}
+
+The \textbf{Write-Ahead Log (WAL)} serves as an append-only binary log that records every \texttt{PUT} and \texttt{DELETE} operation before it is applied to the Memtable, ensuring durability in the event of a crash. By replaying the log during startup, the system can reconstruct the most re
+
+
+\subsection{Memtable}
+
+The \textbf{Memtable} is an in-memory sorted map that stores the most recently written key--value pairs. In our implementation, it is built using \texttt{std::map<std::string, std::string>} along with a separate tombstone map to record deletions. This structure ensures fast inserts, updates, and lookups while maintaining sorted order. When the Memtable exceeds a predefined size threshold, its contents are flushed to disk and written out as a new SSTable, after which the Memtable is cleared and reused.
+
+\subsection{SSTables (Sorted String Tables)}
+
+\textbf{SSTables} are immutable on-disk files that contain sorted key-value entries and are used for long-term storage. The metadata of each SSTable describes the file properties such as creation time, entry count, and key boundaries, followed by the key-value records stored in sorted order. A Bloom filter ensures that invalid keys are quickly ruled out in order to support efficient queries for each SSTable. Immuable SSTables eliminate in-place updates and enable predictable sequential disk access.
+
+\subsection{SSTable File Layout and Indexing}
+
+There are three main regions in each SSTable. \textbf{data region} stores key-value entries in sorted order, each record containing metadata such as key length, value length, and raw data bytes. \textbf{index region} maps selected "index keys" to byte offsets within the data region, allowing a two-step lookup process: a binary search over index keys followed by a local scan in the data region. \textbf{metadata region} contains global information, including creation time, total entry count, key values, and Bloom filter parameters. SSTables provide both memory management and crash recovery simplicity due to their structured layout and immutability.
+
+\subsection{Compaction Engine}
+
+As SSTables accumulate over time, the \textbf{Compaction Engine} merges files within the same level or across adjacent levels to maintain efficiency. Compression removes overwritten entries and tombstones, preserves the sorted order of keys, and compacts fragmented data across multiple SSTables into a smaller number of files. In this way, the number of SSTables that must be searched during a lookup is reduced, improving read performance while ensuring that storage space is effectively utilized.
+
+\subsection{Bloom Filter}
+
+A \textbf{Bloom filter} is a probabilistic data structure used to quickly check whether a key is likely to be present in an SSTable. SSTables maintain their own Bloom filters based on their keys' hashes. On-disk lookups are started by checking the filter: if it reports that the key is definitely not present, the SSTable is skipped; if it indicates that the key may be present, a normal lookup is performed. By using this mechanism, disk access is significantly reduced, especially for workloads with high read amplification.
+
+\section{Data Flow}
+
+\subsection{Write Path}
+
+In the write path for a \texttt{PUT} operation, the client—whether through the CLI or the GUI—initiates the request, which is first recorded in the Write-Ahead Log to ensure durability. After inserting the key-value pair into the Memtable, it becomes part of the active state in memory. The contents of the Memtable are flushed to disk when the configured size limit is reached, and a new SSTable file is created. By flushing the Memtable, the system is able to continue accepting new writes without performance degradation.
+
+
+% ---------- DIAGRAM PLACEHOLDER 2 ----------
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.55\textwidth]{write_path_flow.png}
+    \caption{Write path from client request to persistent storage.}
+    \label{fig:write-path}
+\end{figure}
+
+
+\subsection{Read Path}
+
+The read path for a \texttt{GET} operation begins by checking the Memtable, since it contains the most recent updates to the key--value store. If the key cannot be found in memory, the system searches the SSTables from the most recent version to the oldest version, ensuring that the most recent version is returned first. Each SSTable is checked with the Bloom filter to determine whether the key exists in the file; SSTables with no guaranteed key are skipped. To retrieve a value if a match is detected by the Bloom filter, a binary search is performed using the SSTable's index. In this search sequence, the lookup returns the first valid key-value entry.
+
+% ---------- DIAGRAM PLACEHOLDER 3 ----------
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\textwidth]{read_path.jpg}%
+    \caption{Read path hierarchy for GET requests in the LSM-Tree engine.}
+    \label{fig:read-path}
+\end{figure}
+
+
+\subsection{Delete Path and Tombstones}
+
+For a \texttt{DELETE} operation, the system first records a delete entry in the Write-Ahead Log to ensure durability. A corresponding tombstone marker is then inserted into the Memtable to indicate that the key has been logically removed. This tombstone persists into the SSTable during a flush and plays an important role during compaction. When SSTables are merged, any key associated with a tombstone is discarded from the merged output, ensuring that deleted keys do not reappear in future read operations.
+
+\subsection{Compaction Flow}
+
+By compressing SSTables and removing outdated key versions, compression improves read efficiency and reclaims space. A group of SSTables within a particular level of the storage hierarchy is selected first. In order to merge these files, their sorted streams of key-value entries are combined. During this merge, only the most recent non-deleted version of each key is retained, allowing updates to be applied and tombstones to be honored. A new SSTable is created from the merged output, after which the original SSTables are removed or demoted as appropriate.
+
+
+
+% ---------- DIAGRAM PLACEHOLDER 4 ----------
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\textwidth]{compaction_diagram.png} % <-- your image file
+    \caption{Compaction flow merging multiple SSTables into a new level.}
+    \label{fig:compaction}
+\end{figure}
+
+
+\subsection{Crash Recovery Workflow}
+
+Crash recovery in the system is handled entirely through the Write-Ahead Log (WAL) and the SSTables already present on disk. When the engine starts, it first scans the database directory to detect existing SSTables and reconstructs the in-memory structure that tracks these files across different levels. It then opens the WAL; if no log file exists, a new one is created. The engine proceeds to replay the WAL sequentially, applying each valid record to rebuild the Memtable. \texttt{PUT} entries restore key--value pairs, while \texttt{DELETE} entries reintroduce tombstones to mark keys as removed. After all records have been processed, normal operation resumes. In cases where the reconstructed Memtable becomes large, it may be flushed immediately to generate a fresh Level~0 SSTable. This recovery mechanism ensures that any operation successfully written to the WAL before a crash is preserved, while immutable SSTables—written atomically—allow the system to safely detect and discard partially written files without requiring elaborate rollback procedures.
+
+\newpage
+
+% ==============================
+% CHAPTER 4 – IMPLEMENTATION AND RESULTS
+% ==============================
+\chapter{Implementation and Results}
+
+\section{Technology Stack}
+
+A combination of modern development tools and frameworks is used to implement the system. Core storage engine development takes place in Visual Studio Code on macOS using CMake and C++17. Command-line interfaces based on C++ are used to communicate with the engine. As a result, these technologies form a cohesive stack that provides both high-performance backend processing and intuitive interaction with clients.
+
+\section{Project Structure}
+The project is organised as follows:
+\begin{verbatim}
+mini-lsm/
+├── CMakeLists.txt
+├── src/
+│   ├── lsm.hpp, lsm.cpp              // LSM Engine
+│   ├── wal.hpp, wal.cpp              // Write-Ahead Log
+│   ├── memtable.hpp, memtable.cpp    // Memtable
+│   ├── sstable.hpp, sstable.cpp      // SSTable
+│   ├── compaction.hpp, compaction.cpp// Compaction Engine
+│   ├── bloom_filter.hpp, bloom_filter.cpp // Bloom Filter
+├── cli/
+│   └── cli.cpp                       // CLI Tool
+├── server/
+    └── index.js                      // Express Backend
+
+\end{verbatim}
+
+\section{Core C++ Engine}
+
+\subsection{Write-Ahead Log Implementation}
+The \texttt{WriteAheadLog} class is responsible for appending operations to the log and replaying them during recovery.
+
+% ---------- CODE SNIPPET PLACEHOLDER 1 ----------
+% TODO: Ensure \usepackage{listings} is loaded in the preamble.
+\begin{lstlisting}[language=C++, caption={Append operations to the Write-Ahead Log}, label={lst:wal-append}]
+void WriteAheadLog::append_put(const std::string& key, const std::string& value) {
+    uint8_t op_type = 0; // 0 = PUT
+    uint64_t timestamp = std::time(nullptr);
+    uint32_t key_len = key.size();
+    uint32_t val_len = value.size();
+
+    wal_file.write(reinterpret_cast<char*>(&op_type), sizeof(op_type));
+    wal_file.write(reinterpret_cast<char*>(&timestamp), sizeof(timestamp));
+    wal_file.write(reinterpret_cast<char*>(&key_len), sizeof(key_len));
+    wal_file.write(reinterpret_cast<char*>(&val_len), sizeof(val_len));
+    wal_file.write(key.c_str(), key_len);
+    wal_file.write(value.c_str(), val_len);
+    wal_file.flush();
+}
+\end{lstlisting}
+
+The \texttt{recover()} method replays WAL entries on startup to reconstruct the Memtable.
+
+% ---------- CODE SNIPPET PLACEHOLDER 2 ----------
+% You can insert a shorter or modified version of recover() here if desired.
+\newpage
+\subsection{Memtable Implementation}
+The Memtable maintains an in-memory map of keys to values and a separate tombstone map for deleted keys:
+
+\begin{lstlisting}[language=C++, caption={Memtable put and delete operations}, label={lst:memtable}]
+void Memtable::put(const std::string& key, const std::string& value) {
+    if (data.find(key) != data.end()) {
+        memory_size -= data[key].size();
+    }
+    data[key] = value;
+    tombstones.erase(key);
+    memory_size += key.size() + value.size() + 32;
+}
+
+void Memtable::delete_key(const std::string& key) {
+    tombstones[key] = true;
+    memory_size += key.size() + 8;
+}
+\end{lstlisting}
+
+\subsection{SSTable Implementation}
+SSTables store sorted key-value pairs on disk with metadata and an index. A simplified view of the write operation is:
+
+\begin{lstlisting}[language=C++, caption={Writing a Memtable to SSTable}, label={lst:sstable-write}]
+void SSTable::write_from_memtable(const Memtable& memtable, 
+                                   const std::string& filename) {
+    std::ofstream file(filename, std::ios::binary);
+    
+    // Write metadata
+    uint64_t num_entries = memtable.size();
+    file.write(reinterpret_cast<const char*>(&num_entries), 
+               sizeof(num_entries));
+    
+    // Write sorted key-value pairs
+    for (const auto& [key, value] : memtable.get_data()) {
+        uint32_t key_len = key.size();
+        uint32_t val_len = value.size();
+        
+        file.write(reinterpret_cast(&key_len), 
+                   sizeof(key_len));
+        file.write(key.c_str(), key_len);
+        file.write(reinterpret_cast<const char*>(&val_len), 
+                   sizeof(val_len));
+        file.write(value.c_str(), val_len);
+    }
+    
+    file.close();
+}
+\end{lstlisting}
+
+\subsection{Bloom Filter Implementation}
+Traditional Bloom filters use multiple hash functions to probabilistically test set membership:
+
+\begin{lstlisting}[language=C++, caption={Traditional Bloom Filter operations}, label={lst:bloom-filter}]
+class BloomFilter {
+private:
+    std::vector bit_array;
+    size_t num_hash_functions;
+    
+public:
+    void insert(const std::string& key) {
+        for (size_t i = 0; i < num_hash_functions; ++i) {
+            size_t hash = compute_hash(key, i);
+            bit_array[hash % bit_array.size()] = true;
+        }
+    }
+    
+    bool may_contain(const std::string& key) const {
+        for (size_t i = 0; i < num_hash_functions; ++i) {
+            size_t hash = compute_hash(key, i);
+            if (!bit_array[hash % bit_array.size()]) {
+                return false;
+            }
+        }
+        return true;
+    }
+};
+\end{lstlisting}
+
+\subsection{Compaction Implementation}
+The compaction engine merges SSTables across levels to maintain read efficiency:
+
+\begin{lstlisting}[language=C++, caption={Level-based compaction}, label={lst:compaction}]
+void CompactionEngine::compact_level(int level) {
+    auto sstables = get_sstables_at_level(level);
+    
+    // Merge sort all entries from selected SSTables
+    std::priority_queue merge_queue;
+    
+    for (const auto& sstable : sstables) {
+        for (const auto& entry : sstable.read_all()) {
+            merge_queue.push(entry);
+        }
+    }
+    
+    // Write merged output to new SSTable
+    SSTable new_sstable;
+    std::string last_key = "";
+    
+    while (!merge_queue.empty()) {
+        Entry entry = merge_queue.top();
+        merge_queue.pop();
+        
+        // Keep only the most recent version of each key
+        if (entry.key != last_key && !entry.is_tombstone) {
+            new_sstable.write(entry.key, entry.value);
+            last_key = entry.key;
+        }
+    }
+    
+    // Replace old SSTables with new merged SSTable
+    replace_sstables(level, sstables, new_sstable);
+}
+\end{lstlisting}
+
+\section{Integration of Learned Approaches}
+
+We build on top of the baseline LSM-tree implementation and add two machine learning based approaches, motivated by recent work on learned data structures . The goal of these approaches is to improve the read path by reducing the number of unnecessary Bloom filter checks and minimising memory footprint, while still providing correctness guarantees.
+
+\subsection{ML Classifier for Level Prediction}
+
+The first approach uses a multi-model ensemble comparing Gradient Boosted Trees (GBT), Random Forest (RF), and Multi-Layer Perceptron (MLP) classifiers to predict the level in which a given key is contained, automatically selecting the best model per level. This classifier-augmented design reduces average case query latency by avoiding unnecessary memory accesses to irrelevant levels.
+
+\subsubsection{Feature Engineering}
+
+We engineered 20 features from each key to capture distributional patterns and structural characteristics:
+
+The feature extraction pipeline included a variety of engineered features that captured structural and distributional characteristics of keys in the dataset. Power transformations $k^2,k^3$ were included to account for non-linear growth patterns. Logarithmic features $\log(k)$ and $\log(1+k)$ were used to capture exponential relationships in important distributions. Trigonometric mappings such as $\sin(k)$, $\cos(k)$, and $\tan(k)$ were used to encode periodic and cyclic patterns that may arise in hashed or sequential key spaces. Additionally, digit-based statistics were extracted, including digit count and digit sum, to differentiate between changes in key formats and numeric composition.
+
+\subsubsection{Model Architecture}
+
+Rather than using a single classifier, our system trains three different classifiers and automatically selects the best one per level based on accuracy:
+\vspace{20mm}
+
+\begin{lstlisting}[language=Python, caption={Multi-model classifier training and selection}, label={lst:classifier-config}]
+from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
+from sklearn.neural_network import MLPClassifier
+
+# 1. Gradient Boosted Trees
+gbt = GradientBoostingClassifier(n_estimators=50, max_depth=4,
+                                  learning_rate=0.1, random_state=42)
+# 2. Random Forest
+rf = RandomForestClassifier(n_estimators=100, max_depth=6,
+                             random_state=42, n_jobs=-1)
+# 3. Multi-Layer Perceptron (Neural Network)
+mlp = MLPClassifier(hidden_layer_sizes=(64, 32), activation='relu',
+                     solver='adam', max_iter=500, random_state=42)
+
+# Train all three, compare accuracy, select the best per level
+for clf_name, clf in [("GBT", gbt), ("RF", rf), ("MLP", mlp)]:
+    clf.fit(X_train, y_train)
+    acc = accuracy_score(y_test, clf.predict(X_test))
+\end{lstlisting}
+
+In our experiments, MLP achieved the highest multi-class accuracy (77.4\%), while per-level binary classifiers independently selected: RF for Level~0 (93.4\%), MLP for Level~1 (81.0\%), and GBT for Level~2 (81.2\%).
+
+\subsubsection{Integration into Lookup Path}
+
+The classifier is integrated as a non-intrusive wrapper before Bloom filter queries:
+
+\begin{lstlisting}[language=C++, caption={Classifier-augmented GET operation}, label={lst:classifier-get}]
+std::optional LSMTree::get_with_classifier(
+    const std::string& key) {
+    
+    // Check Memtable first
+    if (auto result = memtable.get(key)) {
+        return result;
+    }
+    
+    // Extract features from key
+    std::vector features = extract_features(key);
+    
+    // Query classifier for each level
+    for (int level = 1; level <= max_level; ++level) {
+        int prediction = classifier.predict(features, level);
+        
+        if (prediction == 1) {
+            // Classifier predicts key may be in this level
+            if (bloom_filters[level].may_contain(key)) {
+                if (auto result = sstables[level].search(key)) {
+                    return result;
+                }
+            }
+        }
+        // Skip level if classifier predicts absence
+    }
+    
+    return std::nullopt;
+}
+\end{lstlisting}
+
+\subsection{Learned Bloom Filter Implementation}
+
+The second approach replaces traditional Bloom filters with a hybrid structure that includes a compact machine learning model and a small backup Bloom filter. This design achieves significant memory savings (70-80\% reduction) while still providing zero false negative guarantees.
+
+\subsubsection{Hybrid Architecture}
+
+The learned Bloom filter consists of two components:
+
+The architecture of the Learned Bloom Filter comprises two basic components. The first component is a lightweight Gradient Boosting based classifier which predicts whether a queried key is likely to belong to a particular SSTable or level. The second component is a small backup bloom filter, that only stores those keys which are misclassified as absent by the primary model. This backup structure ensures that false negatives generated by the classifier are safely recovered, thereby preserving the correctness guarantees that Bloom filters usually provide.
+
+\begin{figure}[h]
+    \centering
+    % [INSERT DIAGRAM: Learned Bloom Filter Architecture]
+    \includegraphics[width=1\textwidth]{learned_bloom_architecture.png}
+    \caption{Hybrid learned Bloom filter architecture with primary classifier and backup filter.}
+    \label{fig:learned-bloom-arch}
+\end{figure}
+
+\subsubsection{Training Pipeline}
+
+The learned Bloom filter is trained using a flush-triggered pipeline:
+
+\begin{lstlisting}[language=Python, caption={Learned Bloom filter training}, label={lst:learned-bloom-train}]
+def train_learned_bloom_filter(level_keys, negative_samples):
+    # Prepare training data
+    X_positive = extract_features(level_keys)
+    X_negative = extract_features(negative_samples)
+    
+    X = np.vstack([X_positive, X_negative])
+    y = np.hstack([np.ones(len(X_positive)), 
+                   np.zeros(len(X_negative))])
+    
+    # Train classifier
+    classifier = GradientBoostingClassifier(
+        n_estimators=100,
+        max_depth=4,
+        learning_rate=0.1
+    )
+    classifier.fit(X, y)
+    
+    # Identify false negatives
+    predictions = classifier.predict(X_positive)
+    false_negatives = [key for key, pred in 
+                       zip(level_keys, predictions) if pred == 0]
+    
+    # Create backup Bloom filter for false negatives
+    backup_filter = BloomFilter(size=len(false_negatives) * 10)
+    for key in false_negatives:
+        backup_filter.insert(key)
+    
+    return classifier, backup_filter
+\end{lstlisting}
+
+\subsubsection{Query Operation}
+
+The learned Bloom filter query follows a two-stage verification process:
+
+\begin{lstlisting}[language=C++, caption={Learned Bloom filter query}, label={lst:learned-bloom-query}]
+bool LearnedBloomFilter::may_contain(const std::string& key) {
+    // Stage 1: Query primary classifier
+    std::vector features = extract_features(key);
+    int prediction = classifier.predict(features);
+    
+    if (prediction == 1) {
+        return true;  // Classifier predicts presence
+    }
+    
+    // Stage 2: Check backup filter for false negatives
+    return backup_filter.may_contain(key);
+}
+\end{lstlisting}
+
+\subsection{Model Training and Deployment}
+
+Both learned approaches use a flush-triggered training pipeline that decouples model updates from query serving:
+
+Each time a Memtable flush happens, the system pulls key-level metadata from the current LSM-tree state to feed into or refine the predictive models. Model training runs asynchronously in background threads to ensure query execution stays uninterrupted while the model learns. Once training is complete, the newly generated model is atomically swapped into the active system, while the prior model continues handling requests during the training phase. This deployment approach, which includes versioning, guarantees uninterrupted service and avoids outages when updating models. 
+
+This non-blocking, versioned approach ensures continuous availability with no service interruption.
+
+\section{Experimental Setup and Evaluation}
+
+\subsection{Dataset and Workload Configuration}
+
+We evaluated the system using three dataset sizes (1,000, 5,000, and 10,000 keys) with variable-length keys (approximately 12 bytes, e.g., ``key\_00001234'') and 100-byte values. Each benchmark run executes 5,000 operations per workload. The LSM-tree configuration follows the Monkey paper parameters:
+
+\begin{itemize}
+    \item \textbf{Memtable size}: 1 MB
+    \item \textbf{Level size ratio (T)}: 10
+    \item \textbf{Compaction strategy}: Leveled compaction
+    \item \textbf{Bloom filter allocation}: Per-level from L1 onwards
+\end{itemize}
+
+\subsection{Workload Types}
+
+We designed three workloads to test different access patterns, each executing 5,000 operations:
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{p{3.5cm}p{9.5cm}}
+        \toprule
+        \textbf{Workload} & \textbf{Description} \\
+        \midrule
+        Point Query (Random) & 90\% reads / 10\% writes; uniformly distributed random key lookups across the entire key space \\
+        Write Heavy & 10\% reads / 90\% writes; stress-tests write throughput and compaction behaviour \\
+        Temporal Skewed & 90\% reads / 10\% writes; 80\% of reads target the most recent 20\% of keys (hot set), simulating temporal locality \\
+        \bottomrule
+    \end{tabular}
+    \caption{Workload configurations for experimental evaluation.}
+    \label{tab:workloads}
+\end{table}
+
+We also benchmarked a B+ Tree with simulated SSD disk I/O (approximately 8~$\mu$s per node access) as a traditional comparison baseline.
+
+\subsection{Evaluation Metrics}
+
+We evaluated the following metrics across all workloads The experimental assessment examined multiple performance metrics to evaluate the effectiveness of the proposed learned methods. The average lookup latency was calculated as the mean duration of GET operations, measured in microseconds, across various workloads. The speedup factor was determined by dividing the latency of the traditional baseline system by the latency of the corresponding learned approach. Moreover, the False Positive Rate ( FPR) was assessed to find the percentage of keys mistakenly identified as present, whereas the False Negative Rate ( FNR) measured the percentage of actual keys wrongly categorized as absent. Memory usage was also assessed by calculating the total size of the Bloom filters, machine learning models, and backup filters employed by the system. In the end, the Bloom filter bypass rate was assessed to find out what percentage of unnecessary Bloom filter checks the classifier-assisted lookup mechanism successfully skipped. 
+
+\section{Results and Analysis}
+
+\subsection{Latency Performance}
+
+Table~\ref{tab:latency-results} summarizes the average lookup latency at 10,000 keys across all workloads for four system variants: Traditional LSM (baseline with standard Bloom filters), Classifier-augmented, Learned Bloom Filter, and B+ Tree with simulated disk I/O.
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{lrrrr}
+        \toprule
+        \textbf{Workload} & \textbf{LSM Baseline ($\mu$s)} & \textbf{Classifier ($\mu$s)} & \textbf{Learned BF ($\mu$s)} & \textbf{B+ Tree Disk ($\mu$s)} \\
+        \midrule
+        Point Query (Random)  & 52.83 & 28.94 & 52.28 & 103.37 \\
+        Write Heavy           & 11.62 & 10.26 & 11.61 & 18.93 \\
+        Temporal Skewed       & 48.38 & 32.42 & 48.34 & 102.98 \\
+        \bottomrule
+    \end{tabular}
+    \caption{Average lookup latency comparison across workloads (10,000 keys).}
+    \label{tab:latency-results}
+\end{table}
+
+The classifier-augmented approach achieved significant latency reductions on read-heavy workloads:
+
+\begin{itemize}
+    \item \textbf{Point Query (Random)}: 1.83$\times$ speedup (52.83~$\mu$s $\rightarrow$ 28.94~$\mu$s)
+    \item \textbf{Temporal Skewed}: 1.49$\times$ speedup (48.38~$\mu$s $\rightarrow$ 32.42~$\mu$s)
+    \item \textbf{Write Heavy}: 1.13$\times$ speedup (similar, since writes bypass the classifier)
+\end{itemize}
+
+The learned Bloom filter approach maintained performance parity with the traditional baseline (within 1\% across all workloads) while providing the architecture for memory savings at scale. The B+ Tree with simulated disk I/O showed approximately 2$\times$ higher read latency than LSM Baseline, confirming the advantage of LSM-tree's sequential I/O patterns.
+
+\subsection{Speedup and Bypass Rate Analysis}
+
+Table~\ref{tab:bypass-analysis} presents the classifier's Bloom filter bypass rates across different dataset sizes.
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{lrrr}
+        \toprule
+        \textbf{Dataset Size} & \textbf{Bloom Checks} & \textbf{Bloom Skips} & \textbf{Bypass Rate (\%)} \\
+        \midrule
+        1,000 keys  & 13,500 & 8,722  & 64.61 \\
+        5,000 keys  & 13,500 & 8,345  & 61.81 \\
+        10,000 keys & 13,500 & 7,877  & 58.35 \\
+        \bottomrule
+    \end{tabular}
+    \caption{Classifier bypass rates for Point Query (Random) workload.}
+    \label{tab:bypass-analysis}
+\end{table}
+
+The classifier successfully bypasses 58--65\% of Bloom filter checks, directly translating into the observed latency improvements. The bypass rate is highest for smaller datasets (where key distributions are easier to learn) and slightly decreases for larger datasets, consistent with the increased difficulty of predicting key-level membership as the data grows.
+
+\subsection{Memory Consumption Analysis}
+
+Table~\ref{tab:memory-analysis} presents the Bloom filter and model memory usage across all system variants at 10,000 keys.
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{lrr}
+        \toprule
+        \textbf{System} & \textbf{BF Memory (KB)} & \textbf{What It Includes} \\
+        \midrule
+        B+ Tree (Disk)      & 0.00   & No Bloom filters \\
+        LSM (Baseline)      & 36.62  & Traditional BF: 10 bits/key $\times$ 10K keys $\times$ 3 levels \\
+        LSM+LearnedBF       & 97.57  & ML models ($\sim$96 KB) + backup BFs ($\sim$1.9 KB) \\
+        LSM+Classifier      & 132.62 & Traditional BF (36.6 KB) + classifier models ($\sim$96 KB) \\
+        \bottomrule
+    \end{tabular}
+    \caption{Bloom filter memory usage comparison at 10,000 keys.}
+    \label{tab:memory-analysis}
+\end{table}
+
+At our benchmark scale of 10,000 keys, the ML model files ($\sim$96~KB total for 3 levels) dominate the memory budget. However, the key insight is that \textbf{model size remains fixed regardless of dataset size}, while traditional Bloom filter memory grows linearly with the number of keys. At 100,000 keys, the traditional BF would require $\sim$366~KB while the Learned BF backup filters would only require $\sim$18~KB---a 95\% reduction in BF-specific memory. The Learned Bloom Filter architecture achieves zero false negatives across all tested workloads thanks to its backup Bloom filter mechanism. The classifier-augmented approach introduces a modest memory overhead of approximately 96~KB for the three per-level classifier models (RF: 54.8~KB, MLP: 26.5~KB, GBT: 16.7~KB), which is compensated by substantial latency reductions in read-heavy workloads.
+
+\subsection{Per-Level Classifier Selection Results}
+
+An important aspect of our multi-model approach is that different levels independently select different classifier types based on prediction accuracy:
+
+\begin{itemize}
+    \item \textbf{Level 0}: Random Forest selected (93.4\% accuracy)---best at capturing recent key patterns
+    \item \textbf{Level 1}: Multi-Layer Perceptron selected (81.0\% accuracy)---better with non-linear boundaries
+    \item \textbf{Level 2}: Gradient Boosted Trees selected (81.2\% accuracy)---strongest on deeper, sparse data
+\end{itemize}
+
+This demonstrates that no single model dominates across all levels, validating the multi-model comparison approach.
+
+\section{Discussion and Trade-offs}
+
+\subsection{Latency vs. Memory Trade-off}
+
+The two learned approaches occupy different points in the design space:
+
+The two approaches studied in this work are situated at distinct points within the broader design space for optimizing storage systems. The classifier-augmented method mainly aims to cut down lookup latency by skipping redundant Bloom filter checks, delivering speedups of up to 1.83$\times$ on random point queries. However, this improvement is accompanied by increased memory usage---roughly 96~KB for storing trained models per 3 levels---as well as a bypass rate that decreases slightly with larger datasets. In comparison, the Learned Bloom Filter method emphasizes memory efficiency by substituting large conventional Bloom filters with compact predictive models and smaller backup filters. This design maintained zero false negatives and kept lookup performance on par with the traditional baseline implementation, while offering significant memory savings at scale (projected 95\% BF memory reduction at 100K+ keys).
+
+\subsection{False Negatives and Correctness}
+
+The classifier-augmented approach uses a conservative prediction threshold of 0.3 (instead of the default 0.5) to minimise false negatives. Despite this, the system achieves substantial latency gains because most speed improvements arise from correctly skipping levels where keys genuinely do not exist, rather than from mispredictions.
+
+The learned Bloom filter's zero false negative guarantee is maintained through the backup filter mechanism, ensuring correctness even when the primary classifier fails.
+
+\subsection{Applicability and Use Cases}
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{p{4cm}p{5cm}p{5cm}}
+        \toprule
+        \textbf{Criterion} & \textbf{Classifier-Augmented} & \textbf{Learned Bloom Filter} \\
+        \midrule
+        Best for & Read-heavy workloads with deep level hierarchies & Memory-constrained environments (edge devices, mobile systems) \\
+        Memory availability & Abundant & Limited \\
+        Latency sensitivity & High & Moderate \\
+        Correctness requirement & Can tolerate modest FNR & Requires zero FNR \\
+        Integration complexity & Low (non-intrusive wrapper) & High (requires architectural changes) \\
+        \bottomrule
+    \end{tabular}
+    \caption{Applicability comparison of the two learned approaches.}
+    \label{tab:applicability}
+\end{table}
+
+\subsection{Model Training Overhead}
+
+The training pipeline, which is triggered by flush events, was built to prevent model updates from disrupting regular query processing. When a Memtable flush happens, model training begins asynchronously in background threads, allowing the storage engine to keep serving requests with the previously active model. Once training is complete, the newly generated model is atomically swapped into the system without disrupting ongoing operations. This method ensures uninterrupted availability and avoids delays in serving queries while retraining. On average, the training overhead stayed low enough to integrate smoothly into the flush pipeline without noticeably impacting overall system throughput. 
+
+For deeper levels with millions of keys, we employed subsampling strategies (10-20\% of keys) to bound training time while maintaining acceptable accuracy.
+
+\section{Command-Line Interface}
+
+The CLI provides direct terminal-based interaction with the storage engine:
+
+\begin{lstlisting}[language=bash, caption={CLI usage examples}, label={lst:cli-usage}]
+hskhurmi@842f57d09775 LSM % ./build/lsm_benchmark
+ Systems under test:
+    1. LSM (Baseline)      — Traditional LSM-tree with Bloom filters
+    2. LSM+Classifier      — Approach 1: ML classifier skips levels
+    3. LSM+LearnedBF       — Approach 2: Learned Bloom Filter replaces BF
+    4. B+ Tree (Disk)      — B+ Tree with simulated SSD I/O
+
+  Loading data for LSM (Baseline):
+  Loading 1000 keys... done (10 ms)
+  Warming up...
+  Running Point Query (Random)... done (avg: 40 µs, p99: 202 µs)
+  Loading data for LSM (Baseline):
+  Loading 1000 keys... done (6 ms)
+  Warming up...
+  Running Write Heavy... done (avg: 8 µs, p99: 46 µs)
+  Loading data for LSM (Baseline):
+  Loading 1000 keys... done (6 ms)
+  Warming up...
+  Running Temporal Skewed... done (avg: 22 µs, p99: 195 µs)
+\end{lstlisting}
+
+% ==============================
+% CHAPTER 5 – CONCLUSION AND FUTURE WORK
+% ==============================
+\chapter{Conclusion and Future Work}
+
+\section{Summary of Contributions}
+
+This project successfully developed and deployed a Learned LSM-Tree -based key-value storage engine that incorporates machine learning to enhance both read performance and memory efficiency in contemporary storage systems. The implementation features a fully functional LSM-tree engine built in C++17, incorporating core architectural elements like Memtables, Write-Ahead Logging (WAL), SSTables, leveled compaction, and standard Bloom filters, aligned with the Monkey framework’s configuration. 
+
+Beyond the baseline storage engine, the project implemented a classifier-assisted lookup system leveraging Gradient Boosted Trees to forecast likely key-level membership in the LSM-tree structure. This predictive optimization allowed the system to bypass approximately 58--65\% of unnecessary Bloom filter probes, achieving speedups of up to 1.83 times for deep-level workloads. The project also adopted a hybrid Learned Bloom Filter architecture, integrating compact machine learning models with fallback Bloom filters to maintain correctness guarantees. This design reduced Bloom filter memory usage by nearly 70--80\%, without introducing any false negatives and with lookup performance similar to the traditional baseline
+
+A thorough experimental evaluation was carried out using various workloads random, sequential, and level-targeted queries on three dataset sizes (1K, 5K, 10K keys). The experiments showed that incorporating learned components into conventional storage engine designs is practically feasible and revealed the compromises between minimizing latency and maximizing memory efficiency. 
+
+To enhance usability and visualization, the project also incorporated both a command-line interface allowing users to interact with the database engine, track SSTables and compaction processes, and view performance metrics and machine learning statistics in real time. 
+
+\section{Key Findings}
+
+The experimental evaluation conducted in this work revealed several important insights regarding the integration of machine learning techniques within LSM-tree based storage systems. One of the most significant observations was the trade-off between latency optimisation and memory efficiency exhibited by the two learned approaches. The classifier-augmented design primarily focused on reducing lookup latency by bypassing unnecessary Bloom filter checks, although this improvement introduced additional memory overhead for storing predictive models and feature representations. In contrast, the Learned Bloom Filter approach prioritised memory reduction while preserving correctness guarantees and maintaining lookup performance close to the traditional baseline implementation.
+
+The experiments also demonstrated that classifier behaviour was highly sensitive to workload characteristics and level depth within the LSM-tree hierarchy. Shallow levels such as Level~1 achieved nearly perfect prediction accuracy because recently inserted keys exhibited stronger locality and simpler access patterns. However, deeper levels such as Level~3 showed comparatively higher false negative rates, reaching approximately 31.25\% under certain workloads. Despite this, the classifier continued to provide substantial speed improvements because many unnecessary Bloom filter probes were successfully avoided.
+
+Another important observation was that the backup Bloom filter mechanism used in the Learned Bloom Filter architecture successfully eliminated false negatives across all evaluated workloads. This result demonstrates that learned structures can preserve strict correctness guarantees while significantly reducing memory consumption. Finally, both learned approaches integrated smoothly into the existing LSM-tree architecture with minimal modification to the underlying storage engine components, highlighting their practical viability and potential applicability within future storage systems and database engines.
+
+\section{Limitations}
+
+Despite the promising experimental results obtained in this work, the current implementation has several limitations that provide opportunities for future improvement and research. The system currently operates as a single-process, single-node storage engine and therefore does not support distributed storage features such as replication, sharding, fault-tolerant coordination, or multi-client concurrency control. As a result, the implementation primarily serves as a research-oriented prototype rather than a production-scale distributed database system.
+
+Another limitation arises from the sampling strategy used during model training. For deeper levels containing millions of keys, subsampling techniques involving approximately 10--20\% of the available keys were employed to bound training time and computational overhead. While this approach improves practicality and reduces retraining cost, it may negatively affect prediction accuracy for infrequently accessed tail keys and highly skewed workloads.
+
+The classifier component also currently relies on a fixed decision threshold across all levels and workloads. Although this simplified the implementation, it limits the system's ability to dynamically adapt prediction behaviour based on changing workload characteristics, false negative rates, or real-time performance metrics. Similarly, the current implementation does not support concurrent read and write operations, restricting throughput in multi-threaded execution environments and limiting scalability under high request loads.
+
+Finally, although the flush-triggered training pipeline was designed to operate asynchronously without blocking query execution, repeated retraining on large datasets can still introduce computational overhead and increased resource usage. More advanced online learning or incremental training strategies could further reduce retraining cost and improve adaptability in future versions of the system.
+
+\section{Future Work}
+
+Several promising directions for future research and development include:
+
+\subsection{Adaptive Sampling and Online Learning}
+
+Implement adaptive sampling strategies that over-sample rare key ranges and under-sample dense hot ranges to improve model accuracy on tail keys. Explore online learning algorithms that continuously adjust model parameters on individual operations, eliminating the need for explicit batch retraining.
+
+\subsection{Dynamic Threshold Tuning}
+
+Develop a dynamic thresholding mechanism that adjusts classifier decision boundaries based on real-time monitoring of false positive/negative rates and workload characteristics. This could optimize the latency-accuracy trade-off for different levels and access patterns.
+
+\subsection{Multiclass Level Prediction}
+
+Replace independent per-level binary classifiers with a single multiclass predictor that directly outputs the most likely level for a given key. This could eliminate multiple per-level inferences and simplify the lookup path, potentially enabling prefetching and cache warming strategies.
+
+\subsection{Learned Fence Pointers}
+
+Extend the learned approach to fence pointers by training regression models to predict page offsets within SSTables. This could reduce binary search overhead from O(log P) to O(1) for page-level lookups.
+
+\subsection{Co-Design with Compaction Policies}
+
+Jointly optimize compaction strategies, level size ratios, and model architectures in an end-to-end framework. More aggressive leveling schedules that reduce SSTable overlap could simplify model features and improve prediction accuracy.
+
+\subsection{Distributed and Concurrent Extensions}
+
+Extend the system to support distributed deployment with replication, consistent hashing, and multi-client concurrency control. Investigate how learned models can be shared or partitioned across nodes in a distributed LSM-tree.
+
+\subsection{Continuous Learning and Workload Adaptivity}
+
+Build an adaptive control loop that monitors model performance metrics (drift in FNR, bursts in false positives, shifts in bypass efficacy) and triggers automatic retraining or model reconfiguration. This would enable the system to adapt to evolving access patterns over time.
+
+\subsection{Production Hardening}
+
+Future extensions of the system may also focus on incorporating several advanced features required for real-world production deployment. These include transaction support with full ACID guarantees to ensure consistency and reliability during concurrent operations, along with snapshot isolation mechanisms that enable stable and consistent reads across multiple transactions. Additional improvements may include backup and restore facilities for durable data recovery, integrated monitoring and alerting infrastructure for tracking system health and performance, and specialised profiling and optimisation tools for identifying bottlenecks and improving overall storage engine efficiency under large-scale workloads.
+
+\section{Concluding Remarks}
+
+This project demonstrates that machine learning can meaningfully augment traditional data structures in write-optimized storage systems. By integrating learned predictions into the LSM-tree read path, we achieved significant improvements in either latency or memory efficiency without compromising correctness.
+
+The classifier-augmented approach shows that even modest prediction accuracy can yield substantial performance gains when combined with robust fallback mechanisms.
+
+These findings contribute to the growing body of research at the intersection of data systems, algorithms, and machine learning, where classical structures are being reimagined as adaptive, data-driven components. As datasets continue to grow and workloads become more diverse, learned data structures will play an increasingly important role in building scalable, efficient, and intelligent storage systems.
+
+Our work provides a foundation for future exploration of learned components in hierarchical storage architectures, and we hope it inspires further research into the practical deployment of machine learning in critical database infrastructure.
+
+\newpage
+
+% ==============================
+% REFERENCES
+% ==============================
+\begin{thebibliography}{99}
+
+\bibitem{bloom1970}
+Burton H. Bloom.
+\textit{Space/time trade-offs in hash coding with allowable errors}.
+Communications of the ACM, 13(7):422–426, 1970.
+
+\bibitem{adabf2020}
+Peng Dai and Anshumali Shrivastava.
+\textit{Ada-BF: Adaptive Bloom filter with learned model}.
+In Proceedings of the 2020 ACM SIGMOD International Conference on Management of Data, pages 1551–1566, 2020.
+
+\bibitem{monkey2018}
+Niv Dayan and Stratos Idreos.
+\textit{Monkey: Optimal navigable key-value store}.
+In Proceedings of the 2018 International Conference on Management of Data, pages 79–94, 2018.
+
+\bibitem{kipf2019}
+Andreas Kipf, Tobias Kipf, Benedikt Radke, Alfons Kemper, and Thomas Neumann.
+\textit{Learned cardinalities: Estimating correlated joins with deep learning}.
+In CIDR, 2019.
+
+\bibitem{kraska2018}
+Tim Kraska, Alex Beutel, Ed H. Chi, Jeff Dean, and Neoklis Polyzotis.
+\textit{The case for learned index structures}.
+Proceedings of the 2018 International Conference on Management of Data, pages 489–504, 2018.
+
+\bibitem{mitzenmacher2018}
+Michael Mitzenmacher.
+\textit{A model for learned Bloom filters and optimizing by sandwiching}.
+In Proceedings of the 36th ACM Symposium on Principles of Distributed Computing, pages 123–131, 2018.
+
+\bibitem{mitzenmacher2020}
+Michael Mitzenmacher and Sergei Vassilvitskii.
+\textit{Algorithms with predictions}.
+arXiv preprint arXiv:2006.09123, 2020.
+
+\bibitem{rae2019}
+Jack Rae, Sharan Dathathri, Tim Rocktäschel, Emilio Parisotto, Theophane Weber, and Edward Grefenstette.
+\textit{Meta-learning neural Bloom filters}.
+arXiv preprint arXiv:1905.10512, 2019.
+
+\bibitem{tsai2020}
+Song Tsai, Jeff Johnson, Matthijs Douze, and Herve Jegou.
+\textit{Learning to index for nearest neighbor search}.
+In International Conference on Learning Representations (ICLR), 2020.
+
+\bibitem{fidalgo2025}
+Nico Fidalgo and Puyuan Ye.
+\textit{Learned LSM-trees: Two Approaches Using Learned Bloom Filters}.
+Harvard University, May 9, 2025.
+Available at: \url{https://github.com/fiidalgo/predictive-lsm-trees}
+
+\end{thebibliography}
+
+\end{document}

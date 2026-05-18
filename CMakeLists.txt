@@ -29,6 +29,8 @@ enable_testing()
 
 # ─── Library: lsm_core ────────────────────────────────────
 # All source files for the core LSM library
+# NOTE: We explicitly list src/bench/benchmark.cpp but EXCLUDE
+# benchmark_main.cpp (it has its own main() for the benchmark executable)
 file(GLOB_RECURSE LSM_SOURCES
     "src/memtable/*.cpp"
     "src/wal/*.cpp"
@@ -37,8 +39,9 @@ file(GLOB_RECURSE LSM_SOURCES
     "src/bloom/*.cpp"
     "src/tree/*.cpp"
     "src/ml/*.cpp"
-    "src/bench/*.cpp"
 )
+# Add only the benchmark library code, not the main
+list(APPEND LSM_SOURCES "src/bench/benchmark.cpp")
 
 add_library(lsm_core STATIC ${LSM_SOURCES})
 target_include_directories(lsm_core PUBLIC ${CMAKE_SOURCE_DIR}/include)

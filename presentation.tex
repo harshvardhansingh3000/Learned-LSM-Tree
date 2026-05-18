@@ -1,0 +1,488 @@
+\documentclass[11pt]{beamer}
+
+% =================================================
+% THEME
+% =================================================
+\usetheme{Madrid}
+\usecolortheme{seahorse}
+
+% =================================================
+% PACKAGES
+% =================================================
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{amsmath}
+\usepackage{array}
+\usepackage{tikz}
+\usepackage{ragged2e}
+
+% =================================================
+% COLORS
+% =================================================
+\definecolor{mnitBlue}{RGB}{3,70,126}
+\definecolor{mnitGreen}{RGB}{33,150,83}
+
+\setbeamercolor{structure}{fg=mnitBlue}
+\setbeamercolor{frametitle}{bg=mnitBlue, fg=white}
+\setbeamercolor{title}{fg=mnitBlue}
+
+% =================================================
+% TITLE INFO
+% =================================================
+\title[Learned LSM-Tree]{Design and Implementation of a Learned LSM-Tree Based Key--Value Storage Engine}
+
+\author[H. Singh \& L. Kumawat]
+{
+Harshvardhan Singh (2022UCP1640) \\
+Lokesh Kumawat (2022UCP1548) \\
+\vspace{3mm}
+Supervisor: Dr.\ Dinesh Gopalani
+}
+
+\institute[MNIT Jaipur]
+{
+Department of Computer Science \& Engineering \\
+Malaviya National Institute of Technology Jaipur
+}
+
+\date{Major Project Evaluation \\ May 2026}
+
+% =================================================
+% DOCUMENT START
+% =================================================
+\begin{document}
+
+% =================================================
+% TITLE SLIDE
+% =================================================
+\begin{frame}[plain]
+\centering
+
+\vspace{0.4cm}
+
+% ===== INSERT LOGO =====
+\includegraphics[height=2.1cm]{MNITlogo.eps}
+
+\vspace{0.5cm}
+
+{\Large \textbf{Design and Implementation of a}}\\[2mm]
+{\Large \textbf{Learned LSM-Tree Based}}\\[2mm]
+{\Large \textbf{Key--Value Storage Engine}}
+
+\vspace{0.8cm}
+
+{\normalsize
+Harshvardhan Singh (2022UCP1640) \\
+Lokesh Kumawat (2022UCP1548)
+}
+
+\vspace{0.5cm}
+
+{\small
+Supervisor: Dr.\ Dinesh Gopalani
+}
+
+\vfill
+
+{\footnotesize
+Department of Computer Science \& Engineering \\
+Malaviya National Institute of Technology Jaipur
+}
+
+\end{frame}
+
+% =================================================
+% MOTIVATION
+% =================================================
+\begin{frame}{Motivation}
+
+\begin{columns}
+
+\column{0.48\textwidth}
+
+\textbf{Modern Systems Need:}
+\begin{itemize}
+    \item High write throughput
+    \item Efficient crash recovery
+    \item Low latency lookups
+    \item Scalable storage architecture
+\end{itemize}
+
+\vspace{3mm}
+
+\textbf{Problems with Traditional B-Trees}
+\begin{itemize}
+    \item Random disk I/O
+    \item High write amplification
+    \item Expensive updates
+    \item Poor write scalability
+\end{itemize}
+
+\column{0.48\textwidth}
+
+% ===== INSERT IMAGE =====
+% Suggested:
+% btree_vs_lsm.png
+
+\includegraphics[width=\textwidth]
+{btreestructure.png}
+
+\end{columns}
+
+\end{frame}
+
+% =================================================
+% PROBLEM STATEMENT
+% =================================================
+\begin{frame}{Problem Statement}
+
+\begin{block}{Challenges in Traditional LSM-Trees}
+\begin{itemize}
+    \item Multiple Bloom filter probes increase lookup latency
+    \item Bloom filters consume large memory at deeper levels
+    \item Read amplification increases with SSTable growth
+    \item Existing systems are difficult to study and modify
+\end{itemize}
+\end{block}
+
+\vspace{4mm}
+
+\begin{block}{Goal}
+Design a compact LSM-tree based key--value engine with:
+\begin{itemize}
+    \item Efficient write path
+    \item Optimised read path
+    \item ML-assisted lookup optimisation
+    \item Reduced Bloom filter memory overhead
+\end{itemize}
+\end{block}
+
+\end{frame}
+
+% =================================================
+% LITERATURE REVIEW
+% =================================================
+\begin{frame}{Literature Review}
+
+\small
+
+\begin{table}
+\centering
+\begin{tabular}{>{\raggedright}p{2.2cm} >{\centering}p{1.8cm} >{\centering}p{2cm} >{\centering\arraybackslash}p{2cm}}
+
+\toprule
+\textbf{System} & \textbf{LSM} & \textbf{Bloom Filters} & \textbf{ML Integration} \\
+\midrule
+
+LevelDB & Yes & Yes & No \\
+RocksDB & Yes & Yes & No \\
+Cassandra & Yes & Yes & No \\
+DynamoDB & Yes & Yes & No \\
+Learned LSM-Trees & Yes & Learned BF & Yes \\
+
+\bottomrule
+\end{tabular}
+\end{table}
+
+\vspace{4mm}
+
+\textbf{Key Research Insights}
+\begin{itemize}
+    \item Learned Bloom Filters can reduce memory usage significantly
+    \item ML-based prediction can bypass unnecessary probes
+    \item Trade-off exists between latency and memory optimisation
+\end{itemize}
+
+\end{frame}
+
+% =================================================
+% OBJECTIVES
+% =================================================
+\begin{frame}{Objectives}
+
+\begin{enumerate}
+    \item Implement a complete LSM-tree based key--value engine
+    \item Integrate WAL, SSTables, Bloom filters, and compaction
+    \item Reduce lookup latency using ML-assisted prediction
+    \item Reduce Bloom filter memory overhead using Learned BF
+    \item Benchmark traditional and learned approaches
+\end{enumerate}
+\end{frame}
+
+\begin{frame}{Objectives}
+
+\begin{center}
+
+% ===== INSERT IMAGE =====
+% Suggested:
+% objectives_workflow.png
+
+\includegraphics[width=0.9\textwidth]
+{objectives_workflow.png}
+
+\end{center}
+
+\end{frame}
+
+
+
+% =================================================
+% LEARNED LSM
+% =================================================
+\begin{frame}{ML-Enhanced LSM Optimisations}
+
+\begin{columns}
+
+\column{0.42\textwidth}
+
+\textbf{Classifier-Augmented Lookup}
+\begin{itemize}
+    \item Predict probable key-level membership
+    \item Skip unnecessary Bloom filter checks
+    \item Reduce lookup latency
+\end{itemize}
+
+\vspace{3mm}
+
+\textbf{Learned Bloom Filter}
+\begin{itemize}
+    \item Replace large Bloom filters
+    \item Use compact ML models
+    \item Backup filter ensures correctness
+\end{itemize}
+
+\column{0.55\textwidth}
+
+% ===== INSERT IMAGE =====
+% Suggested:
+% learned_bloom_architecture.png
+
+\includegraphics[width=\textwidth]
+{learned_bloom_architecture.png}
+
+\end{columns}
+
+\end{frame}
+
+% =================================================
+% EXPERIMENTAL SETUP
+% =================================================
+\begin{frame}{Experimental Setup}
+
+\small
+
+\begin{table}
+\centering
+\begin{tabular}{ll}
+\toprule
+\textbf{Parameter} & \textbf{Configuration} \\
+\midrule
+
+Language & C++17 + Python \\
+ML Library & scikit-learn \\
+ML Models & GBT, Random Forest, MLP (auto-selected per level) \\
+Interface & Command-Line (CLI) \\
+Dataset Sizes & 1K, 5K, 10K keys \\
+Workloads & Random, Write Heavy, Temporal Skewed \\
+Metrics & Latency, Throughput, Bypass Rate, Memory \\
+Storage Structure & WAL + SSTables + Compaction \\
+
+\bottomrule
+\end{tabular}
+\end{table}
+
+\vspace{5mm}
+
+\begin{block}{Evaluation Focus}
+\begin{itemize}
+    \item Latency reduction
+    \item Memory optimisation
+    \item Bloom filter bypass rate
+    \item False negative analysis
+\end{itemize}
+\end{block}
+
+\end{frame}
+
+% =================================================
+% LATENCY RESULTS
+% =================================================
+\begin{frame}{Key Performance Metrics}
+
+\begin{center}
+
+% ===== INSERT GRAPH =====
+% Suggested:
+% latency_comparison.png
+
+\includegraphics[width=0.4\textwidth]
+{latency_comparison.png}
+
+\end{center}
+
+\vspace{2mm}
+
+
+\end{frame}
+
+\begin{frame}{Key Performance Metrics}
+
+\begin{center}
+
+% ===== INSERT GRAPH =====
+% Suggested:
+% latency_comparison.png
+
+\includegraphics[width=0.7\textwidth]
+{excel.png}
+
+\end{center}
+
+\vspace{2mm}
+
+
+\end{frame}
+
+
+
+
+% =================================================
+% TRADEOFF ANALYSIS
+% =================================================
+\begin{frame}{Trade-off Analysis}
+
+\small
+
+\begin{table}
+\centering
+\begin{tabular}{p{3cm} p{2cm} p{2cm} p{1.5cm}}
+\toprule
+
+\textbf{Approach} &
+\textbf{Latency} &
+\textbf{Memory} &
+\textbf{FNR} \\
+
+\midrule
+
+Traditional BF &
+Baseline &
+High &
+0\% \\
+
+Classifier-Augmented &
+Very Low &
+Moderate &
+11--31\% \\
+
+Learned BF &
+Near Baseline &
+Very Low &
+0\% \\
+
+\bottomrule
+\end{tabular}
+\end{table}
+
+\vspace{5mm}
+
+\begin{block}{Key Insight}
+Classifier approach optimises latency, whereas Learned Bloom Filters optimise memory efficiency while preserving correctness.
+\end{block}
+
+\end{frame}
+
+% =================================================
+% CONCLUSION
+% =================================================
+\begin{frame}{Conclusion}
+
+\begin{itemize}
+    \item Successfully implemented a complete Learned LSM-tree storage engine
+    \item Integrated WAL, Memtable, SSTables, compaction, and Bloom filters
+    \item Reduced lookup latency using ML-assisted prediction
+    \item Achieved 70--80\% memory reduction using Learned Bloom Filters
+    \item Demonstrated practical integration of ML into storage systems
+\end{itemize}
+
+\vspace{5mm}
+
+\begin{center}
+
+\textbf{\Large Learned Systems + Storage Engines}
+
+\end{center}
+
+\end{frame}
+
+% =================================================
+% FUTURE WORK
+% =================================================
+\begin{frame}{Future Scope}
+
+\begin{itemize}
+    \item Distributed and replicated storage engine
+    \item Concurrent read/write support
+    \item Adaptive online learning
+    \item Dynamic threshold tuning
+    \item Learned compaction strategies
+    \item Compression and SSD-aware optimisation
+    \item Production-grade transaction support
+\end{itemize}
+
+\vspace{5mm}
+
+
+
+\end{frame}
+
+% =================================================
+% REFERENCES
+% =================================================
+\begin{frame}{References}
+
+\small
+
+\begin{itemize}
+    \item LevelDB Documentation
+    \item RocksDB Architecture Guide
+    \item Apache Cassandra Documentation
+    \item Amazon DynamoDB Paper
+    \item Monkey: Optimal Navigable Key-Value Store
+    \item Bloom Filter — Burton H. Bloom (1970)
+\end{itemize}
+
+\end{frame}
+
+% =================================================
+% THANK YOU
+% =================================================
+\begin{frame}[plain]
+
+\begin{center}
+
+\vspace{2cm}
+
+{\Huge \textbf{Thank You}}
+
+\vspace{1cm}
+
+{\Large Questions?}
+
+\vfill
+
+{\footnotesize
+Harshvardhan Singh \\
+Lokesh Kumawat \\
+MNIT Jaipur
+}
+
+\end{center}
+
+\end{frame}
+
+% =================================================
+% END
+% =================================================
+\end{document}
